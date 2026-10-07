@@ -89,7 +89,7 @@ title.Parent = main
 title.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 title.Size = UDim2.new(1, 0, 0, 30)
 title.Font = Enum.Font.GothamBold
-title.Text = "HRSH"
+title.Text = "FOOL"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextSize = 14
 title.ZIndex = 20
@@ -264,6 +264,7 @@ createToggle("Aim Assist", "AimAssist")
 createToggle("NPC ESP", "ESP")
 createToggle("Enemy HP", "EnemyHP")
 createToggle("Player ESP", "PlayerESP")
+createToggle("My HP", "SelfHP")
 createToggle("Noclip", "Noclip")
 createToggle("Item ESP", "ItemESP")
 createToggle("Crosshair", "Crosshair")
@@ -495,6 +496,111 @@ rs.Heartbeat:Connect(function(dt)
         end
     end
 
+end)
+
+-- My HP display
+local selfHPGui
+local selfHPLabel
+local selfHPConnection
+
+local function removeSelfHP()
+    if selfHPConnection then
+        selfHPConnection:Disconnect()
+        selfHPConnection = nil
+    end
+
+    if selfHPGui then
+        selfHPGui:Destroy()
+        selfHPGui = nil
+        selfHPLabel = nil
+    end
+end
+
+local function setupSelfHP()
+    removeSelfHP()
+
+    if not toggles.SelfHP then
+        return
+    end
+
+    local char = lplr.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+
+    if not hum then
+        return
+    end
+
+    selfHPGui = Instance.new("ScreenGui")
+    selfHPGui.Name = "HRSH_SelfHP"
+    selfHPGui.ResetOnSpawn = false
+    selfHPGui.IgnoreGuiInset = true
+    selfHPGui.DisplayOrder = 999998
+    selfHPGui.Parent = cg
+
+    selfHPLabel = Instance.new("TextLabel")
+    selfHPLabel.Name = "HP"
+    selfHPLabel.AnchorPoint = Vector2.new(0.5, 0)
+    selfHPLabel.Position = UDim2.new(0.5, 0, 0, 25)
+    selfHPLabel.Size = UDim2.new(0, 180, 0, 30)
+    selfHPLabel.BackgroundTransparency = 1
+    selfHPLabel.Font = Enum.Font.GothamBold
+    selfHPLabel.TextSize = 18
+    selfHPLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    selfHPLabel.TextStrokeTransparency = 0
+    selfHPLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    selfHPLabel.Text = "100/100"
+    selfHPLabel.Parent = selfHPGui
+
+    local function update()
+        if not selfHPLabel or not selfHPLabel.Parent then
+            return
+        end
+
+        local current = math.max(0, hum.Health)
+        local maximum = math.max(1, hum.MaxHealth)
+
+        selfHPLabel.Text =
+            string.format("%d/%d",
+                math.floor(current + 0.5),
+                math.floor(maximum + 0.5)
+            )
+
+        local pct = math.clamp(current / maximum, 0, 1)
+
+        if pct > 0.6 then
+            selfHPLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        elseif pct > 0.3 then
+            selfHPLabel.TextColor3 = Color3.fromRGB(255, 220, 80)
+        else
+            selfHPLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+        end
+    end
+
+    update()
+
+    selfHPConnection = hum.HealthChanged:Connect(update)
+end
+
+-- Recreate the display after respawn if the toggle remains enabled.
+lplr.CharacterAdded:Connect(function()
+    if toggles.SelfHP then
+        task.wait(0.25)
+        setupSelfHP()
+    end
+end)
+
+-- Watch the toggle without touching the existing GUI/event structure.
+task.spawn(function()
+    local last = toggles.SelfHP
+
+    while true do
+        if toggles.SelfHP ~= last then
+            last = toggles.SelfHP
+            setupSelfHP()
+        end
+
+        task.wait(0.1)
+    end
 end)
 
 -- Item ESP
