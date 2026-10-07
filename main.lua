@@ -445,18 +445,40 @@ local function addPlayerInfoESP(plr, char)
     end
 
     -- Team colors:
-    -- Green = teammate, Red = enemy, Blue = no-team/neutral.
-    local myTeam = lplr.Team
-    local playerTeam = plr.Team
+    -- BLUE = teammate, RED = enemy, GREEN = neutral/unknown.
+    -- Some games do not use Roblox Player.Team, so also check TeamColor
+    -- and common custom team/faction attributes.
+    local function getTeamKey(player)
+        if player.Team then
+            return "team:" .. player.Team:GetFullName()
+        end
+
+        if player.TeamColor and player.TeamColor ~= BrickColor.new("Medium stone grey") then
+            return "color:" .. player.TeamColor.Name
+        end
+
+        local attrs = {"Team", "team", "Faction", "faction", "Role", "role"}
+        for _, attrName in ipairs(attrs) do
+            local value = player:GetAttribute(attrName)
+            if value ~= nil then
+                return attrName:lower() .. ":" .. tostring(value):lower()
+            end
+        end
+
+        return nil
+    end
+
+    local myTeam = getTeamKey(lplr)
+    local playerTeam = getTeamKey(plr)
 
     if myTeam and playerTeam then
         if myTeam == playerTeam then
-            hl.FillColor = Color3.fromRGB(0, 200, 80)
+            hl.FillColor = Color3.fromRGB(0, 120, 255) -- teammate
         else
-            hl.FillColor = Color3.fromRGB(220, 50, 50)
+            hl.FillColor = Color3.fromRGB(220, 50, 50) -- enemy
         end
     else
-        hl.FillColor = Color3.fromRGB(0, 120, 255)
+        hl.FillColor = Color3.fromRGB(0, 200, 80) -- neutral/unknown
     end
 
     local head = char:FindFirstChild("Head")
