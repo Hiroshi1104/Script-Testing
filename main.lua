@@ -15,6 +15,7 @@ local toggles = {
     EnemyHP = false,
     PlayerESP = false,
     ItemESP = false,
+    Crosshair = true,
     Hitboxes = false,
     Fullbright = false,
     InstantInteract = false,
@@ -243,6 +244,7 @@ createToggle("NPC ESP", "ESP")
 createToggle("Enemy HP", "EnemyHP")
 createToggle("Player ESP", "PlayerESP")
 createToggle("Item ESP", "ItemESP")
+createToggle("Crosshair", "Crosshair")
 createToggle("Big Hitboxes", "Hitboxes")
 createToggle("Fullbright", "Fullbright")
 createToggle("Instant Interact", "InstantInteract")
@@ -504,63 +506,117 @@ local function itemCategory(name)
     local n = name:lower()
 
     if n:find("medkit") or n:find("med kit") or n:find("medical")
-        or n:find("bandage") or n:find("heal") or n:find("medic") then
+        or n:find("bandage") or n:find("heal") or n:find("medic")
+        or n:find("first aid") or n:find("firstaid") then
         return "MEDICAL", Color3.fromRGB(100, 255, 120)
     end
 
     if n:find("grenade") or n:find("frag") or n:find("flash")
-        or n:find("smoke") or n:find("molotov") then
+        or n:find("smoke") or n:find("molotov")
+        or n:find("m67") or n:find("m69") then
         return "GRENADE", Color3.fromRGB(255, 180, 60)
     end
 
     if n:find("gun") or n:find("rifle") or n:find("pistol")
         or n:find("smg") or n:find("shotgun") or n:find("revolver")
         or n:find("carbine") or n:find("ak") or n:find("m4")
-        or n:find("glock") or n:find("peacemaker") then
+        or n:find("glock") or n:find("peacemaker")
+        or n:find("rg1") or n:find("rg%-08") then
         return "GUN", Color3.fromRGB(255, 100, 100)
     end
 
     return "MISC", Color3.fromRGB(255, 255, 255)
 end
 
+-- Find the actual pickup object from a ProximityPrompt.
+-- ACS/game pickups are sometimes wrapped in Attachments/Folders,
+-- so checking only direct Models/Tools can miss them.
+local function getPickupRootFromPrompt(prompt)
+    if not prompt or not prompt:IsA("ProximityPrompt") then
+        return nil
+    end
+
+    local ancestor = prompt.Parent
+    local topLevel = nil
+
+    -- ACS pickups in this game are direct children of Workspace.
+    -- Walk upward and keep the highest ancestor whose parent is Workspace.
+    while ancestor and ancestor ~= ws do
+        if ancestor.Parent == ws then
+            topLevel = ancestor
+            break
+        end
+        ancestor = ancestor.Parent
+    end
+
+    return topLevel
+end
+
 local function isPickupCandidate(obj)
-    if plrs:GetPlayerFromCharacter(obj) then return false end
-    if obj:IsA("Tool") then return true end
+    if not obj or obj.Parent ~= ws then
+        return false
+    end
+
+    if plrs:GetPlayerFromCharacter(obj) then
+        return false
+    end
+
+    if obj:IsA("Tool") then
+        return true
+    end
+
     if obj:IsA("Model") then
-        if obj:FindFirstChildOfClass("Humanoid") then return false end
+        if obj:FindFirstChildOfClass("Humanoid") then
+            return false
+        end
+
         return obj:FindFirstChildWhichIsA("ProximityPrompt", true) ~= nil
     end
+
     if obj:IsA("BasePart") then
         return obj:FindFirstChildWhichIsA("ProximityPrompt", true) ~= nil
     end
+
     return false
 end
 
 local function addItemESP(obj)
-    if not toggles.ItemESP or not isPickupCandidate(obj) then return end
+    if not toggles.ItemESP or not isPickupCandidate(obj) then
+        return
+    end
 
     local adornee = getItemAdornee(obj)
-    if not adornee then return end
+    if not adornee then
+        return
+    end
 
     local existing = itemESPObjects[obj]
+
     if existing and existing.Parent then
         local label = existing:FindFirstChild("Label")
+
         if label then
             local category, color = itemCategory(obj.Name)
             label.Text = category .. "\n" .. obj.Name
             label.TextColor3 = color
         end
+
         return
     end
 
     local category, color = itemCategory(obj.Name)
+
     local gui = Instance.new("BillboardGui")
     gui.Name = "ItemESP"
-    gui.Size = UDim2.new(0, 180, 0, 38)
-    gui.StudsOffset = Vector3.new(0, 2, 0)
+    gui.Size = UDim2.new(0, 200, 0, 42)
+    gui.StudsOffset = Vector3.new(0, 2.5, 0)
     gui.AlwaysOnTop = true
     gui.MaxDistance = cfg.maxDist + 100
-    gui.Parent = adornee
+    gui.Adornee = adornee
+
+    -- Parent to CoreGui instead of the item so the ESP object itself
+    -- doesn't interfere with the pickup hierarchy.
+    gui.Parent = cg
 
     local label = Instance.new("TextLabel")
     label.Name = "Label"
@@ -580,6 +636,7 @@ end
 
 local function removeItemESP(obj)
     local gui = itemESPObjects[obj]
+
     if gui then
         gui:Destroy()
         itemESPObjects[obj] = nil
@@ -588,7 +645,10 @@ end
 
 local function clearItemESP()
     for obj, gui in pairs(itemESPObjects) do
-        if gui then gui:Destroy() end
+        if gui then
+            gui:Destroy()
+        end
+
         itemESPObjects[obj] = nil
     end
 end
@@ -601,23 +661,28 @@ local function updateItemESP()
 
     local seen = {}
 
-    for _, obj in ipairs(ws:GetDescendants()) do
-        if isPickupCandidate(obj) then
-            -- For descendants inside a Tool/Model, use the top-level pickup object.
-            local root = obj
-            if not obj:IsA("Tool") and not obj:IsA("Model") and not obj:IsA("BasePart") then
-                root = obj:FindFirstAncestorOfClass("Tool")
-                    or obj:FindFirstAncestorOfClass("Model")
-                    or obj
-            end
+    -- 1. Directly inspect every ProximityPrompt.
+    -- This catches ACS-style pickups hidden inside Attachments/Folders.
+    for _, prompt in ipairs(ws:GetDescendants()) do
+        if prompt:IsA("ProximityPrompt") then
+            local root = getPickupRootFromPrompt(prompt)
 
-            if root and (root:IsA("Tool") or root:IsA("Model") or root:IsA("BasePart")) then
+            if root and isPickupCandidate(root) then
                 seen[root] = true
                 addItemESP(root)
             end
         end
     end
 
+    -- 2. Also catch Tools that don't currently expose a ProximityPrompt.
+    for _, obj in ipairs(ws:GetDescendants()) do
+        if obj:IsA("Tool") and isPickupCandidate(obj) then
+            seen[obj] = true
+            addItemESP(obj)
+        end
+    end
+
+    -- Remove stale ESPs.
     for obj in pairs(itemESPObjects) do
         if not seen[obj] or not obj:IsDescendantOf(ws) then
             removeItemESP(obj)
@@ -625,10 +690,23 @@ local function updateItemESP()
     end
 end
 
+-- Immediate response when a pickup prompt appears.
+pps.PromptShown:Connect(function(prompt)
+    if not toggles.ItemESP then
+        return
+    end
+
+    local root = getPickupRootFromPrompt(prompt)
+
+    if root and isPickupCandidate(root) then
+        addItemESP(root)
+    end
+end)
+
 -- Crosshair
 local crossX = Drawing.new("Line")
 local crossY = Drawing.new("Line")
-crossX.Visible, crossY.Visible = true, true
+crossX.Visible, crossY.Visible = toggles.Crosshair, toggles.Crosshair
 crossX.Thickness, crossY.Thickness = 2, 2
 crossX.Color, crossY.Color = Color3.fromRGB(255, 255, 255), Color3.fromRGB(255, 255, 255)
 
@@ -712,13 +790,21 @@ end)
 rs.RenderStepped:Connect(function(dt)
     local center = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
 
-    crossX.From = Vector2.new(center.X - 10, center.Y)
-    crossX.To = Vector2.new(center.X + 10, center.Y)
-    crossY.From = Vector2.new(center.X, center.Y - 10)
-    crossY.To = Vector2.new(center.X, center.Y + 10)
+    -- Crosshair can now be toggled independently of Aim Assist.
+    crossX.Visible = toggles.Crosshair
+    crossY.Visible = toggles.Crosshair
+
+    if toggles.Crosshair then
+        crossX.From = Vector2.new(center.X - 10, center.Y)
+        crossX.To = Vector2.new(center.X + 10, center.Y)
+        crossY.From = Vector2.new(center.X, center.Y - 10)
+        crossY.To = Vector2.new(center.X, center.Y + 10)
+    end
 
     if not toggles.AimAssist then
-        crossX.Color, crossY.Color = Color3.fromRGB(255, 255, 255), Color3.fromRGB(255, 255, 255)
+        if toggles.Crosshair then
+            crossX.Color, crossY.Color = Color3.fromRGB(255, 255, 255), Color3.fromRGB(255, 255, 255)
+        end
         return
     end
 
