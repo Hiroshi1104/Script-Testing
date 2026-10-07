@@ -264,9 +264,9 @@ createToggle("Aim Assist", "AimAssist")
 createToggle("NPC ESP", "ESP")
 createToggle("Enemy HP", "EnemyHP")
 createToggle("Player ESP", "PlayerESP")
+createToggle("Noclip", "Noclip")
 createToggle("Item ESP", "ItemESP")
 createToggle("Crosshair", "Crosshair")
-createToggle("Noclip", "Noclip")
 createToggle("Big Hitboxes", "Hitboxes")
 createToggle("Fullbright", "Fullbright")
 createToggle("Instant Interact", "InstantInteract")
@@ -599,12 +599,21 @@ local function removeItemESP(obj)
 end
 
 local function clearItemESP()
+    -- Clear the ESPs tracked by this script.
     for obj, gui in pairs(itemESPObjects) do
         if gui then
             gui:Destroy()
         end
 
         itemESPObjects[obj] = nil
+    end
+
+    -- Also remove stale ItemESP billboards left behind by an older
+    -- execution of the script. This fixes ESP remaining after OFF.
+    for _, gui in ipairs(cg:GetDescendants()) do
+        if gui:IsA("BillboardGui") and gui.Name == "ItemESP" then
+            gui:Destroy()
+        end
     end
 end
 
@@ -690,12 +699,26 @@ task.spawn(function()
     while true do
         if toggles.ItemESP then
             updateItemESP()
-        elseif next(itemESPObjects) ~= nil then
+        else
             clearItemESP()
         end
 
-        task.wait(0.25)
+        task.wait(0.15)
     end
+end)
+
+ws.ChildAdded:Connect(function(obj)
+    if toggles.ItemESP then
+        task.defer(function()
+            if obj and obj.Parent == ws then
+                addItemESP(obj)
+            end
+        end)
+    end
+end)
+
+ws.ChildRemoved:Connect(function(obj)
+    removeItemESP(obj)
 end)
 
 -- Crosshair
