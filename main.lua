@@ -16,6 +16,7 @@ local toggles = {
     PlayerESP = false,
     ItemESP = false,
     Crosshair = true,
+    Noclip = false,
     Hitboxes = false,
     Fullbright = false,
     InstantInteract = false,
@@ -265,6 +266,7 @@ createToggle("Enemy HP", "EnemyHP")
 createToggle("Player ESP", "PlayerESP")
 createToggle("Item ESP", "ItemESP")
 createToggle("Crosshair", "Crosshair")
+createToggle("Noclip", "Noclip")
 createToggle("Big Hitboxes", "Hitboxes")
 createToggle("Fullbright", "Fullbright")
 createToggle("Instant Interact", "InstantInteract")
@@ -466,9 +468,7 @@ end)
 
 local lastPlayerESP = false
 local lastEnemyHP = false
-local lastItemESP = false
 local enemyHPUpdateTimer = 0
-local itemESPUpdateTimer = 0
 
 rs.Heartbeat:Connect(function(dt)
     if toggles.PlayerESP ~= lastPlayerESP then
@@ -487,13 +487,6 @@ rs.Heartbeat:Connect(function(dt)
         end
     end
 
-    if toggles.ItemESP ~= lastItemESP then
-        lastItemESP = toggles.ItemESP
-        if not toggles.ItemESP then
-            clearItemESP()
-        end
-    end
-
     if toggles.EnemyHP then
         enemyHPUpdateTimer += dt
         if enemyHPUpdateTimer >= 0.1 then
@@ -502,13 +495,6 @@ rs.Heartbeat:Connect(function(dt)
         end
     end
 
-    if toggles.ItemESP then
-        itemESPUpdateTimer += dt
-        if itemESPUpdateTimer >= 0.5 then
-            itemESPUpdateTimer = 0
-            updateItemESP()
-        end
-    end
 end)
 
 -- Item ESP
@@ -519,63 +505,13 @@ local function getItemAdornee(obj)
         return obj
     elseif obj:IsA("Tool") then
         return obj:FindFirstChild("Handle")
-            or obj.PrimaryPart
             or obj:FindFirstChildWhichIsA("BasePart", true)
     elseif obj:IsA("Model") then
         return obj.PrimaryPart
             or obj:FindFirstChildWhichIsA("BasePart", true)
     end
+
     return nil
-end
-
-local function itemCategory(name)
-    local n = name:lower()
-
-    if n:find("medkit") or n:find("med kit") or n:find("medical")
-        or n:find("bandage") or n:find("heal") or n:find("medic")
-        or n:find("first aid") or n:find("firstaid") then
-        return "MEDICAL", Color3.fromRGB(100, 255, 120)
-    end
-
-    if n:find("grenade") or n:find("frag") or n:find("flash")
-        or n:find("smoke") or n:find("molotov")
-        or n:find("m67") or n:find("m69") then
-        return "GRENADE", Color3.fromRGB(255, 180, 60)
-    end
-
-    if n:find("gun") or n:find("rifle") or n:find("pistol")
-        or n:find("smg") or n:find("shotgun") or n:find("revolver")
-        or n:find("carbine") or n:find("ak") or n:find("m4")
-        or n:find("glock") or n:find("peacemaker")
-        or n:find("rg1") or n:find("rg%-08") then
-        return "GUN", Color3.fromRGB(255, 100, 100)
-    end
-
-    return "MISC", Color3.fromRGB(255, 255, 255)
-end
-
--- Find the actual pickup object from a ProximityPrompt.
--- ACS/game pickups are sometimes wrapped in Attachments/Folders,
--- so checking only direct Models/Tools can miss them.
-local function getPickupRootFromPrompt(prompt)
-    if not prompt or not prompt:IsA("ProximityPrompt") then
-        return nil
-    end
-
-    local ancestor = prompt.Parent
-    local topLevel = nil
-
-    -- ACS pickups in this game are direct children of Workspace.
-    -- Walk upward and keep the highest ancestor whose parent is Workspace.
-    while ancestor and ancestor ~= ws do
-        if ancestor.Parent == ws then
-            topLevel = ancestor
-            break
-        end
-        ancestor = ancestor.Parent
-    end
-
-    return topLevel
 end
 
 local function isPickupCandidate(obj)
@@ -583,27 +519,22 @@ local function isPickupCandidate(obj)
         return false
     end
 
+    -- Never treat player characters as pickups.
     if plrs:GetPlayerFromCharacter(obj) then
         return false
     end
 
-    if obj:IsA("Tool") then
+    -- This is the marker visible in the game's pickup hierarchy.
+    if obj:FindFirstChild("Put Item In ServerStore", true) then
         return true
     end
 
-    if obj:IsA("Model") then
-        if obj:FindFirstChildOfClass("Humanoid") then
-            return false
-        end
-
-        return obj:FindFirstChildWhichIsA("ProximityPrompt", true) ~= nil
+    -- Fallback: anything directly under Workspace containing a prompt.
+    if obj:FindFirstChildWhichIsA("ProximityPrompt", true) then
+        return true
     end
 
-    if obj:IsA("BasePart") then
-        return obj:FindFirstChildWhichIsA("ProximityPrompt", true) ~= nil
-    end
-
-    return false
+    return obj:IsA("Tool")
 end
 
 local function addItemESP(obj)
@@ -616,32 +547,29 @@ local function addItemESP(obj)
         return
     end
 
-    local existing = itemESPObjects[obj]
+    local gui = itemESPObjects[obj]
 
-    if existing and existing.Parent then
-        local label = existing:FindFirstChild("Label")
+    if gui and gui.Parent then
+        gui.Adornee = adornee
 
+        local label = gui:FindFirstChild("Label")
         if label then
-            local category, color = itemCategory(obj.Name)
-            label.Text = category .. "\n" .. obj.Name
-            label.TextColor3 = color
+            label.Text = obj.Name
         end
 
         return
     end
 
-    local category, color = itemCategory(obj.Name)
-
-    local gui = Instance.new("BillboardGui")
+    gui = Instance.new("BillboardGui")
     gui.Name = "ItemESP"
-    gui.Size = UDim2.new(0, 200, 0, 42)
+    gui.Size = UDim2.new(0, 220, 0, 28)
     gui.StudsOffset = Vector3.new(0, 2.5, 0)
-    gui.AlwaysOnTop = true
-    gui.MaxDistance = cfg.maxDist + 100
-    gui.Adornee = adornee
 
-    -- Parent to CoreGui instead of the item so the ESP object itself
-    -- doesn't interfere with the pickup hierarchy.
+    -- Do not use ProximityPrompt.Enabled or PromptShown.
+    -- The ESP exists independently of prompt activation range.
+    gui.AlwaysOnTop = true
+    gui.MaxDistance = 2000
+    gui.Adornee = adornee
     gui.Parent = cg
 
     local label = Instance.new("TextLabel")
@@ -649,12 +577,13 @@ local function addItemESP(obj)
     label.Size = UDim2.new(1, 0, 1, 0)
     label.BackgroundTransparency = 1
     label.Font = Enum.Font.GothamBold
-    label.TextSize = 12
+    label.TextSize = 13
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
     label.TextStrokeTransparency = 0
     label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-    label.TextColor3 = color
-    label.TextWrapped = true
-    label.Text = category .. "\n" .. obj.Name
+
+    -- Only the item name. No GUN/MISC/GRENADE category.
+    label.Text = obj.Name
     label.Parent = gui
 
     itemESPObjects[obj] = gui
@@ -687,28 +616,18 @@ local function updateItemESP()
 
     local seen = {}
 
-    -- 1. Directly inspect every ProximityPrompt.
-    -- This catches ACS-style pickups hidden inside Attachments/Folders.
-    for _, prompt in ipairs(ws:GetDescendants()) do
-        if prompt:IsA("ProximityPrompt") then
-            local root = getPickupRootFromPrompt(prompt)
-
-            if root and isPickupCandidate(root) then
-                seen[root] = true
-                addItemESP(root)
-            end
-        end
-    end
-
-    -- 2. Also catch Tools that don't currently expose a ProximityPrompt.
-    for _, obj in ipairs(ws:GetDescendants()) do
-        if obj:IsA("Tool") and isPickupCandidate(obj) then
+    -- IMPORTANT:
+    -- The pickup objects you showed are direct children of Workspace.
+    -- We inspect those objects directly instead of waiting for
+    -- ProximityPromptService.PromptShown.
+    for _, obj in ipairs(ws:GetChildren()) do
+        if isPickupCandidate(obj) then
             seen[obj] = true
             addItemESP(obj)
         end
     end
 
-    -- Remove stale ESPs.
+    -- Remove ESP for pickups that were moved/removed.
     for obj in pairs(itemESPObjects) do
         if not seen[obj] or not obj:IsDescendantOf(ws) then
             removeItemESP(obj)
@@ -716,16 +635,66 @@ local function updateItemESP()
     end
 end
 
--- Immediate response when a pickup prompt appears.
-pps.PromptShown:Connect(function(prompt)
-    if not toggles.ItemESP then
+-- Noclip
+local noclipOriginal = {}
+local lastNoclip = false
+
+local function setNoclip(enabled)
+    local char = lplr.Character
+
+    if not char then
         return
     end
 
-    local root = getPickupRootFromPrompt(prompt)
+    if enabled then
+        for _, obj in ipairs(char:GetDescendants()) do
+            if obj:IsA("BasePart") then
+                if noclipOriginal[obj] == nil then
+                    noclipOriginal[obj] = obj.CanCollide
+                end
 
-    if root and isPickupCandidate(root) then
-        addItemESP(root)
+                obj.CanCollide = false
+            end
+        end
+    else
+        for part, original in pairs(noclipOriginal) do
+            if part and part.Parent then
+                part.CanCollide = original
+            end
+
+            noclipOriginal[part] = nil
+        end
+    end
+end
+
+lplr.CharacterAdded:Connect(function()
+    task.wait(0.25)
+
+    if toggles.Noclip then
+        setNoclip(true)
+    end
+end)
+
+-- Keep collision disabled while Noclip is enabled.
+rs.Stepped:Connect(function()
+    if toggles.Noclip then
+        setNoclip(true)
+    end
+end)
+
+-- Item scanner
+-- Runs after the Item ESP functions have been declared.
+-- It scans direct Workspace children, so ProximityPrompt activation range
+-- does not control whether an item is detected.
+task.spawn(function()
+    while true do
+        if toggles.ItemESP then
+            updateItemESP()
+        elseif next(itemESPObjects) ~= nil then
+            clearItemESP()
+        end
+
+        task.wait(0.25)
     end
 end)
 
