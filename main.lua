@@ -437,12 +437,26 @@ local function addPlayerInfoESP(plr, char)
     if not hl then
         hl = Instance.new("Highlight")
         hl.Name = "PlayerHighlight"
-        hl.FillColor = Color3.fromRGB(0, 120, 255)
         hl.OutlineColor = Color3.fromRGB(255, 255, 255)
         hl.FillTransparency = 0.5
         hl.OutlineTransparency = 0
         hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
         hl.Parent = char
+    end
+
+    -- Team colors:
+    -- Green = teammate, Red = enemy, Blue = no-team/neutral.
+    local myTeam = lplr.Team
+    local playerTeam = plr.Team
+
+    if myTeam and playerTeam then
+        if myTeam == playerTeam then
+            hl.FillColor = Color3.fromRGB(0, 200, 80)
+        else
+            hl.FillColor = Color3.fromRGB(220, 50, 50)
+        end
+    else
+        hl.FillColor = Color3.fromRGB(0, 120, 255)
     end
 
     local head = char:FindFirstChild("Head")
