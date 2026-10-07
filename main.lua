@@ -429,10 +429,10 @@ end
 
 
 -- Player ESP
-local function addPlayerESPInfo(plr, char)
+local function addPlayerInfoESP(plr, char)
     if not char then return end
 
-    -- Highlight
+    -- Keep the existing player highlight exactly as-is.
     local hl = char:FindFirstChild("PlayerHighlight")
     if not hl then
         hl = Instance.new("Highlight")
@@ -445,68 +445,55 @@ local function addPlayerESPInfo(plr, char)
         hl.Parent = char
     end
 
-    -- Player information
     local head = char:FindFirstChild("Head")
     local hum = char:FindFirstChildOfClass("Humanoid")
-    if not head or not hum then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not head or not hum or not root then return end
 
     local infoGui = head:FindFirstChild("PlayerInfoESP")
     if not infoGui then
         infoGui = Instance.new("BillboardGui")
         infoGui.Name = "PlayerInfoESP"
-        infoGui.Size = UDim2.new(0, 240, 0, 55)
+        infoGui.Size = UDim2.new(0, 220, 0, 42)
         infoGui.StudsOffset = Vector3.new(0, 3, 0)
         infoGui.AlwaysOnTop = true
         infoGui.MaxDistance = 2000
         infoGui.Parent = head
 
-        local info = Instance.new("TextLabel")
-        info.Name = "Info"
-        info.BackgroundTransparency = 1
-        info.Size = UDim2.fromScale(1, 1)
-        info.Font = Enum.Font.GothamBold
-        info.TextSize = 14
-        info.TextStrokeTransparency = 0
-        info.TextWrapped = true
-        info.Parent = infoGui
+        local label = Instance.new("TextLabel")
+        label.Name = "Info"
+        label.Size = UDim2.new(1, 0, 1, 0)
+        label.BackgroundTransparency = 1
+        label.Font = Enum.Font.GothamBold
+        label.TextSize = 13
+        label.TextColor3 = Color3.fromRGB(255, 255, 255)
+        label.TextStrokeTransparency = 0
+        label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+        label.Parent = infoGui
     end
 
-    local info = infoGui:FindFirstChild("Info")
-    if not info then return end
+    local label = infoGui:FindFirstChild("Info")
+    if not label then return end
 
     local myChar = lplr.Character
     local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-    local targetRoot = char:FindFirstChild("HumanoidRootPart")
 
     local distance = 0
-    if myRoot and targetRoot then
-        distance = math.floor((myRoot.Position - targetRoot.Position).Magnitude + 0.5)
+    if myRoot then
+        distance = math.floor((myRoot.Position - root.Position).Magnitude + 0.5)
     end
 
     local hp = math.max(0, hum.Health)
-    local maxHp = math.max(0, hum.MaxHealth)
+    local maxHp = math.max(1, hum.MaxHealth)
 
-    info.Text = string.format(
-        "%s  @%s\nHP: %d/%d  |  %d studs",
-        plr.DisplayName,
+    -- Only the requested player information: name, health, distance.
+    label.Text = string.format(
+        "%s\nHP: %d/%d  |  %d studs",
         plr.Name,
         math.floor(hp + 0.5),
         math.floor(maxHp + 0.5),
         distance
     )
-
-    if maxHp > 0 then
-        local ratio = hp / maxHp
-        if ratio > 0.6 then
-            info.TextColor3 = Color3.fromRGB(255, 255, 255)
-        elseif ratio > 0.3 then
-            info.TextColor3 = Color3.fromRGB(255, 220, 0)
-        else
-            info.TextColor3 = Color3.fromRGB(255, 70, 70)
-        end
-    else
-        info.TextColor3 = Color3.fromRGB(255, 255, 255)
-    end
 end
 
 local function removePlayerESP(char)
@@ -525,27 +512,13 @@ end
 local function applyPlayerESP(state)
     for _, plr in ipairs(plrs:GetPlayers()) do
         if plr == lplr then continue end
-
         local char = plr.Character
         if not char then continue end
 
         if state then
-            addPlayerESPInfo(plr, char)
+            addPlayerInfoESP(plr, char)
         else
             removePlayerESP(char)
-        end
-    end
-end
-
-local function updatePlayerESP()
-    if not toggles.PlayerESP then return end
-
-    for _, plr in ipairs(plrs:GetPlayers()) do
-        if plr == lplr then continue end
-
-        local char = plr.Character
-        if char then
-            addPlayerESPInfo(plr, char)
         end
     end
 end
@@ -554,7 +527,7 @@ plrs.PlayerAdded:Connect(function(plr)
     plr.CharacterAdded:Connect(function(char)
         if not toggles.PlayerESP then return end
         task.wait(0.5)
-        addPlayerESPInfo(plr, char)
+        addPlayerInfoESP(plr, char)
     end)
 end)
 
@@ -566,6 +539,14 @@ rs.Heartbeat:Connect(function(dt)
     if toggles.PlayerESP ~= lastPlayerESP then
         lastPlayerESP = toggles.PlayerESP
         applyPlayerESP(toggles.PlayerESP)
+    end
+
+    if toggles.PlayerESP then
+        for _, plr in ipairs(plrs:GetPlayers()) do
+            if plr ~= lplr and plr.Character then
+                addPlayerInfoESP(plr, plr.Character)
+            end
+        end
     end
 
     if toggles.EnemyHP ~= lastEnemyHP then
