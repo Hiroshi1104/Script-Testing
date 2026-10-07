@@ -54,10 +54,18 @@ local hitboxCfg = {
 }
 
 -- GUI Setup
+local oldGui = cg:FindFirstChild("OmniMenu")
+if oldGui then
+    oldGui:Destroy()
+end
+
 local gui = Instance.new("ScreenGui")
 gui.Name = "OmniMenu"
-gui.Parent = cg
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.DisplayOrder = 999999
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.Parent = cg
 
 local main = Instance.new("Frame")
 main.Name = "main"
@@ -83,6 +91,7 @@ title.Font = Enum.Font.GothamBold
 title.Text = "FOOL"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextSize = 14
+title.ZIndex = 20
 
 local minBtn = Instance.new("TextButton")
 minBtn.Parent = main
@@ -94,7 +103,8 @@ minBtn.Text = "-"
 minBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 minBtn.TextSize = 16
 minBtn.BorderSizePixel = 0
-minBtn.ZIndex = 10
+minBtn.ZIndex = 30
+minBtn.AutoButtonColor = true
 
 local scroll = Instance.new("ScrollingFrame")
 scroll.Name = "Scroll"
@@ -103,15 +113,18 @@ scroll.BackgroundTransparency = 1
 scroll.BorderSizePixel = 0
 scroll.Position = UDim2.new(0, 0, 0, 35)
 scroll.Size = UDim2.new(1, 0, 1, -35)
-scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-scroll.ScrollBarThickness = 2
-scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+scroll.CanvasSize = UDim2.new(0, 0, 0, 950)
+scroll.ScrollBarThickness = 3
+scroll.ScrollBarImageTransparency = 0.15
+scroll.ScrollingEnabled = true
+scroll.ZIndex = 5
 
 local layout = Instance.new("UIListLayout")
 layout.Parent = scroll
 layout.Padding = UDim.new(0, 5)
 layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 layout.SortOrder = Enum.SortOrder.LayoutOrder
+layout.FillDirection = Enum.FillDirection.Vertical
 
 local isMin = false
 local origSize = main.Size
@@ -152,6 +165,7 @@ local function createSection(name)
     lbl.TextColor3 = Color3.fromRGB(180, 180, 180)
     lbl.TextSize = 10
     lbl.BorderSizePixel = 0
+    lbl.ZIndex = 6
 end
 
 local function createToggle(name, key)
@@ -164,6 +178,8 @@ local function createToggle(name, key)
     b.TextColor3 = Color3.fromRGB(255, 255, 255)
     b.TextSize = 12
     b.BorderSizePixel = 0
+    b.ZIndex = 7
+    b.AutoButtonColor = true
 
     b.MouseButton1Click:Connect(function()
         toggles[key] = not toggles[key]
@@ -184,6 +200,7 @@ local function createSlider(name, minV, maxV, def, cb)
     container.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
     container.Size = UDim2.new(0.9, 0, 0, 45)
     container.BorderSizePixel = 0
+    container.ZIndex = 6
 
     local lbl = Instance.new("TextLabel")
     lbl.Parent = container
@@ -193,6 +210,7 @@ local function createSlider(name, minV, maxV, def, cb)
     lbl.Text = name .. ": " .. tostring(def)
     lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
     lbl.TextSize = 10
+    lbl.ZIndex = 7
 
     local back = Instance.new("Frame")
     back.Parent = container
@@ -200,12 +218,14 @@ local function createSlider(name, minV, maxV, def, cb)
     back.Position = UDim2.new(0.1, 0, 0.6, 0)
     back.Size = UDim2.new(0.8, 0, 0, 8)
     back.BorderSizePixel = 0
+    back.ZIndex = 7
 
     local fill = Instance.new("Frame")
     fill.Parent = back
     fill.BackgroundColor3 = Color3.fromRGB(40, 150, 40)
     fill.Size = UDim2.new((def - minV) / (maxV - minV), 0, 1, 0)
     fill.BorderSizePixel = 0
+    fill.ZIndex = 8
 
     local dragging = false
     local function update(input)
@@ -264,6 +284,12 @@ createToggle("Low Visuals", "LowVisuals")
 createToggle("Instance Optimizer", "InstanceOptimizer")
 createToggle("Particle Cap", "ParticleCap")
 createToggle("Ultra Potato", "UltraPotato")
+
+-- Explicit canvas height avoids executor/UIListLayout differences.
+task.defer(function()
+    local contentHeight = layout.AbsoluteContentSize.Y
+    scroll.CanvasSize = UDim2.new(0, 0, 0, math.max(950, contentHeight + 10))
+end)
 
 -- Toggle menu visibility
 uis.InputBegan:Connect(function(input, gpe)
