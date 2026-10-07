@@ -12,11 +12,10 @@ local lplr = plrs.LocalPlayer
 local toggles = {
     AimAssist = false,
     ESP = false,
-    PlayerESP = false,
     EnemyHP = false,
+    PlayerESP = false,
     ItemESP = false,
     Crosshair = true,
-    Noclip = false,
     Hitboxes = false,
     Fullbright = false,
     InstantInteract = false,
@@ -242,11 +241,10 @@ end
 createSection("General")
 createToggle("Aim Assist", "AimAssist")
 createToggle("NPC ESP", "ESP")
-createToggle("Player ESP", "PlayerESP")
 createToggle("Enemy HP", "EnemyHP")
+createToggle("Player ESP", "PlayerESP")
 createToggle("Item ESP", "ItemESP")
 createToggle("Crosshair", "Crosshair")
-createToggle("Noclip", "Noclip")
 createToggle("Big Hitboxes", "Hitboxes")
 createToggle("Fullbright", "Fullbright")
 createToggle("Instant Interact", "InstantInteract")
@@ -339,6 +337,68 @@ local function applyEsp(model)
     hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 end
 
+-- Enemy HP ESP
+local function addEnemyHPESP(model)
+    if not toggles.EnemyHP then return end
+    local hum = model:FindFirstChildOfClass("Humanoid")
+    local root = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart")
+    if not hum or not root or hum.Health <= 0 then return end
+
+    local hpGui = root:FindFirstChild("EnemyHPESP")
+    if not hpGui then
+        hpGui = Instance.new("BillboardGui")
+        hpGui.Name = "EnemyHPESP"
+        hpGui.Size = UDim2.new(0, 140, 0, 24)
+        hpGui.StudsOffset = Vector3.new(0, -3, 0)
+        hpGui.AlwaysOnTop = true
+        hpGui.MaxDistance = cfg.maxDist + 100
+        hpGui.Parent = root
+
+        local label = Instance.new("TextLabel")
+        label.Name = "HP"
+        label.Size = UDim2.new(1, 0, 1, 0)
+        label.BackgroundTransparency = 1
+        label.Font = Enum.Font.GothamBold
+        label.TextSize = 13
+        label.TextStrokeTransparency = 0
+        label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+        label.TextColor3 = Color3.fromRGB(255, 255, 255)
+        label.Parent = hpGui
+    end
+
+    local label = hpGui:FindFirstChild("HP")
+    if label then
+        local hp = math.max(0, hum.Health)
+        local maxHp = math.max(1, hum.MaxHealth)
+        local pct = math.clamp(hp / maxHp, 0, 1)
+        label.Text = "HP: " .. math.floor(hp + 0.5) .. "/" .. math.floor(maxHp + 0.5)
+        if pct > 0.6 then
+            label.TextColor3 = Color3.fromRGB(100, 255, 100)
+        elseif pct > 0.3 then
+            label.TextColor3 = Color3.fromRGB(255, 220, 80)
+        else
+            label.TextColor3 = Color3.fromRGB(255, 80, 80)
+        end
+    end
+end
+
+local function removeEnemyHPESP(model)
+    if not model then return end
+    local root = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart")
+    if root then
+        local gui = root:FindFirstChild("EnemyHPESP")
+        if gui then gui:Destroy() end
+    end
+end
+
+local function updateEnemyHPESP()
+    if not toggles.EnemyHP then return end
+    for _, npc in ipairs(validTargets) do
+        addEnemyHPESP(npc)
+    end
+end
+
+
 -- Player ESP
 local function applyPlayerESP(state)
     for _, plr in ipairs(plrs:GetPlayers()) do
@@ -379,10 +439,267 @@ plrs.PlayerAdded:Connect(function(plr)
 end)
 
 local lastPlayerESP = false
-rs.Heartbeat:Connect(function()
+local lastEnemyHP = false
+local lastItemESP = false
+local enemyHPUpdateTimer = 0
+local itemESPUpdateTimer = 0
+
+rs.Heartbeat:Connect(function(dt)
     if toggles.PlayerESP ~= lastPlayerESP then
         lastPlayerESP = toggles.PlayerESP
         applyPlayerESP(toggles.PlayerESP)
+    end
+
+    if toggles.EnemyHP ~= lastEnemyHP then
+        lastEnemyHP = toggles.EnemyHP
+        if not toggles.EnemyHP then
+            for _, npc in ipairs(ws:GetDescendants()) do
+                if npc:IsA("Model") then
+                    removeEnemyHPESP(npc)
+                end
+            end
+        end
+    end
+
+    if toggles.ItemESP ~= lastItemESP then
+        lastItemESP = toggles.ItemESP
+        if not toggles.ItemESP then
+            clearItemESP()
+        end
+    end
+
+    if toggles.EnemyHP then
+        enemyHPUpdateTimer += dt
+        if enemyHPUpdateTimer >= 0.1 then
+            enemyHPUpdateTimer = 0
+            updateEnemyHPESP()
+        end
+    end
+
+    if toggles.ItemESP then
+        itemESPUpdateTimer += dt
+        if itemESPUpdateTimer >= 0.5 then
+            itemESPUpdateTimer = 0
+            updateItemESP()
+        end
+    end
+end)
+
+-- Item ESP
+local itemESPObjects = {}
+
+local function getItemAdornee(obj)
+    if obj:IsA("BasePart") then
+        return obj
+    elseif obj:IsA("Tool") then
+        return obj:FindFirstChild("Handle")
+            or obj.PrimaryPart
+            or obj:FindFirstChildWhichIsA("BasePart", true)
+    elseif obj:IsA("Model") then
+        return obj.PrimaryPart
+            or obj:FindFirstChildWhichIsA("BasePart", true)
+    end
+    return nil
+end
+
+local function itemCategory(name)
+    local n = name:lower()
+
+    if n:find("medkit") or n:find("med kit") or n:find("medical")
+        or n:find("bandage") or n:find("heal") or n:find("medic")
+        or n:find("first aid") or n:find("firstaid") then
+        return "MEDICAL", Color3.fromRGB(100, 255, 120)
+    end
+
+    if n:find("grenade") or n:find("frag") or n:find("flash")
+        or n:find("smoke") or n:find("molotov")
+        or n:find("m67") or n:find("m69") then
+        return "GRENADE", Color3.fromRGB(255, 180, 60)
+    end
+
+    if n:find("gun") or n:find("rifle") or n:find("pistol")
+        or n:find("smg") or n:find("shotgun") or n:find("revolver")
+        or n:find("carbine") or n:find("ak") or n:find("m4")
+        or n:find("glock") or n:find("peacemaker")
+        or n:find("rg1") or n:find("rg%-08") then
+        return "GUN", Color3.fromRGB(255, 100, 100)
+    end
+
+    return "MISC", Color3.fromRGB(255, 255, 255)
+end
+
+-- Find the actual pickup object from a ProximityPrompt.
+-- ACS/game pickups are sometimes wrapped in Attachments/Folders,
+-- so checking only direct Models/Tools can miss them.
+local function getPickupRootFromPrompt(prompt)
+    if not prompt or not prompt:IsA("ProximityPrompt") then
+        return nil
+    end
+
+    local ancestor = prompt.Parent
+    local topLevel = nil
+
+    -- ACS pickups in this game are direct children of Workspace.
+    -- Walk upward and keep the highest ancestor whose parent is Workspace.
+    while ancestor and ancestor ~= ws do
+        if ancestor.Parent == ws then
+            topLevel = ancestor
+            break
+        end
+        ancestor = ancestor.Parent
+    end
+
+    return topLevel
+end
+
+local function isPickupCandidate(obj)
+    if not obj or obj.Parent ~= ws then
+        return false
+    end
+
+    if plrs:GetPlayerFromCharacter(obj) then
+        return false
+    end
+
+    if obj:IsA("Tool") then
+        return true
+    end
+
+    if obj:IsA("Model") then
+        if obj:FindFirstChildOfClass("Humanoid") then
+            return false
+        end
+
+        return obj:FindFirstChildWhichIsA("ProximityPrompt", true) ~= nil
+    end
+
+    if obj:IsA("BasePart") then
+        return obj:FindFirstChildWhichIsA("ProximityPrompt", true) ~= nil
+    end
+
+    return false
+end
+
+local function addItemESP(obj)
+    if not toggles.ItemESP or not isPickupCandidate(obj) then
+        return
+    end
+
+    local adornee = getItemAdornee(obj)
+    if not adornee then
+        return
+    end
+
+    local existing = itemESPObjects[obj]
+
+    if existing and existing.Parent then
+        local label = existing:FindFirstChild("Label")
+
+        if label then
+            local category, color = itemCategory(obj.Name)
+            label.Text = category .. "\n" .. obj.Name
+            label.TextColor3 = color
+        end
+
+        return
+    end
+
+    local category, color = itemCategory(obj.Name)
+
+    local gui = Instance.new("BillboardGui")
+    gui.Name = "ItemESP"
+    gui.Size = UDim2.new(0, 200, 0, 42)
+    gui.StudsOffset = Vector3.new(0, 2.5, 0)
+    gui.AlwaysOnTop = true
+    gui.MaxDistance = cfg.maxDist + 100
+    gui.Adornee = adornee
+
+    -- Parent to CoreGui instead of the item so the ESP object itself
+    -- doesn't interfere with the pickup hierarchy.
+    gui.Parent = cg
+
+    local label = Instance.new("TextLabel")
+    label.Name = "Label"
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 12
+    label.TextStrokeTransparency = 0
+    label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    label.TextColor3 = color
+    label.TextWrapped = true
+    label.Text = category .. "\n" .. obj.Name
+    label.Parent = gui
+
+    itemESPObjects[obj] = gui
+end
+
+local function removeItemESP(obj)
+    local gui = itemESPObjects[obj]
+
+    if gui then
+        gui:Destroy()
+        itemESPObjects[obj] = nil
+    end
+end
+
+local function clearItemESP()
+    for obj, gui in pairs(itemESPObjects) do
+        if gui then
+            gui:Destroy()
+        end
+
+        itemESPObjects[obj] = nil
+    end
+end
+
+local function updateItemESP()
+    if not toggles.ItemESP then
+        clearItemESP()
+        return
+    end
+
+    local seen = {}
+
+    -- 1. Directly inspect every ProximityPrompt.
+    -- This catches ACS-style pickups hidden inside Attachments/Folders.
+    for _, prompt in ipairs(ws:GetDescendants()) do
+        if prompt:IsA("ProximityPrompt") then
+            local root = getPickupRootFromPrompt(prompt)
+
+            if root and isPickupCandidate(root) then
+                seen[root] = true
+                addItemESP(root)
+            end
+        end
+    end
+
+    -- 2. Also catch Tools that don't currently expose a ProximityPrompt.
+    for _, obj in ipairs(ws:GetDescendants()) do
+        if obj:IsA("Tool") and isPickupCandidate(obj) then
+            seen[obj] = true
+            addItemESP(obj)
+        end
+    end
+
+    -- Remove stale ESPs.
+    for obj in pairs(itemESPObjects) do
+        if not seen[obj] or not obj:IsDescendantOf(ws) then
+            removeItemESP(obj)
+        end
+    end
+end
+
+-- Immediate response when a pickup prompt appears.
+pps.PromptShown:Connect(function(prompt)
+    if not toggles.ItemESP then
+        return
+    end
+
+    local root = getPickupRootFromPrompt(prompt)
+
+    if root and isPickupCandidate(root) then
+        addItemESP(root)
     end
 end)
 
@@ -473,16 +790,21 @@ end)
 rs.RenderStepped:Connect(function(dt)
     local center = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
 
+    -- Crosshair can now be toggled independently of Aim Assist.
     crossX.Visible = toggles.Crosshair
     crossY.Visible = toggles.Crosshair
 
-    crossX.From = Vector2.new(center.X - 10, center.Y)
-    crossX.To = Vector2.new(center.X + 10, center.Y)
-    crossY.From = Vector2.new(center.X, center.Y - 10)
-    crossY.To = Vector2.new(center.X, center.Y + 10)
+    if toggles.Crosshair then
+        crossX.From = Vector2.new(center.X - 10, center.Y)
+        crossX.To = Vector2.new(center.X + 10, center.Y)
+        crossY.From = Vector2.new(center.X, center.Y - 10)
+        crossY.To = Vector2.new(center.X, center.Y + 10)
+    end
 
     if not toggles.AimAssist then
-        crossX.Color, crossY.Color = Color3.fromRGB(255, 255, 255), Color3.fromRGB(255, 255, 255)
+        if toggles.Crosshair then
+            crossX.Color, crossY.Color = Color3.fromRGB(255, 255, 255), Color3.fromRGB(255, 255, 255)
+        end
         return
     end
 
@@ -769,207 +1091,5 @@ uis.InputBegan:Connect(function(input, gpe)
         lastParticleCap = true
         toggles.ParticleCap = true
         print("Deep Clean done, removed " .. cleaned .. " parts")
-    end
-end)
-
-
--- =========================================================
--- ADDITIONAL ESP / NOCLIP
--- Built on the original working menu/script.
--- =========================================================
-
-local enemyHpGuis = {}
-local playerInfoGuis = {}
-local itemGuis = {}
-local noclipOriginal = {}
-
-local function getRoot(model)
-    return model.PrimaryPart or model:FindFirstChild("HumanoidRootPart") or model:FindFirstChildWhichIsA("BasePart", true)
-end
-
-local function makeLabelGui(name, adornee, text, offset, color)
-    local gui = Instance.new("BillboardGui")
-    gui.Name = name
-    gui.Adornee = adornee
-    gui.Size = UDim2.new(0, 180, 0, 24)
-    gui.StudsOffset = offset
-    gui.AlwaysOnTop = true
-    gui.MaxDistance = 1000
-    gui.Parent = cg
-
-    local label = Instance.new("TextLabel")
-    label.Name = "Label"
-    label.Size = UDim2.new(1, 0, 1, 0)
-    label.BackgroundTransparency = 1
-    label.Font = Enum.Font.GothamBold
-    label.TextSize = 13
-    label.TextColor3 = color or Color3.new(1,1,1)
-    label.TextStrokeTransparency = 0
-    label.TextStrokeColor3 = Color3.new(0,0,0)
-    label.Text = text
-    label.Parent = gui
-    return gui, label
-end
-
-local function updateEnemyHP()
-    if not toggles.EnemyHP then
-        for model, gui in pairs(enemyHpGuis) do
-            if gui then gui:Destroy() end
-            enemyHpGuis[model] = nil
-        end
-        return
-    end
-
-    local seen = {}
-    for _, model in ipairs(validTargets) do
-        local hum = model:FindFirstChildOfClass("Humanoid")
-        local root = getRoot(model)
-        if hum and root and hum.Health > 0 then
-            seen[model] = true
-            local gui = enemyHpGuis[model]
-            local label
-            if not gui or not gui.Parent then
-                gui, label = makeLabelGui("EnemyHPESP", root, "", Vector3.new(0,-3,0), Color3.new(1,1,1))
-                enemyHpGuis[model] = gui
-            else
-                gui.Adornee = root
-                label = gui:FindFirstChild("Label")
-            end
-            if label then
-                local hp = math.max(0, hum.Health)
-                local maxHp = math.max(1, hum.MaxHealth)
-                local pct = hp / maxHp
-                label.Text = "HP: " .. math.floor(hp + 0.5) .. "/" .. math.floor(maxHp + 0.5)
-                label.TextColor3 = pct > .6 and Color3.fromRGB(100,255,100) or (pct > .3 and Color3.fromRGB(255,220,80) or Color3.fromRGB(255,80,80))
-            end
-        end
-    end
-    for model, gui in pairs(enemyHpGuis) do
-        if not seen[model] or not model:IsDescendantOf(ws) then
-            gui:Destroy()
-            enemyHpGuis[model] = nil
-        end
-    end
-end
-
-local function updatePlayerInfo()
-    if not toggles.PlayerESP then
-        for char, gui in pairs(playerInfoGuis) do
-            if gui then gui:Destroy() end
-            playerInfoGuis[char] = nil
-        end
-        return
-    end
-
-    local seen = {}
-    local myRoot = lplr.Character and lplr.Character:FindFirstChild("HumanoidRootPart")
-    for _, plr in ipairs(plrs:GetPlayers()) do
-        if plr ~= lplr and plr.Character then
-            local char = plr.Character
-            local head = char:FindFirstChild("Head")
-            local root = char:FindFirstChild("HumanoidRootPart")
-            local hum = char:FindFirstChildOfClass("Humanoid")
-            if head and root and hum then
-                seen[char] = true
-                local gui = playerInfoGuis[char]
-                local label
-                if not gui or not gui.Parent then
-                    gui, label = makeLabelGui("PlayerInfoESP", head, "", Vector3.new(0,3,0), Color3.new(1,1,1))
-                    gui.Size = UDim2.new(0, 240, 0, 42)
-                    playerInfoGuis[char] = gui
-                else
-                    gui.Adornee = head
-                    label = gui:FindFirstChild("Label")
-                end
-                if label then
-                    local dist = myRoot and math.floor((root.Position-myRoot.Position).Magnitude+0.5) or 0
-                    label.Text = plr.DisplayName .. " @" .. plr.Name .. "\nHP: " .. math.floor(hum.Health+0.5) .. "/" .. math.floor(hum.MaxHealth+0.5) .. " | " .. dist .. " studs"
-                end
-            end
-        end
-    end
-    for char, gui in pairs(playerInfoGuis) do
-        if not seen[char] or not char:IsDescendantOf(ws) then
-            gui:Destroy()
-            playerInfoGuis[char] = nil
-        end
-    end
-end
-
-local function pickupCandidate(obj)
-    if obj.Parent ~= ws then return false end
-    if plrs:GetPlayerFromCharacter(obj) then return false end
-    if obj:FindFirstChild("Put Item In ServerStore", true) then return true end
-    if obj:FindFirstChildWhichIsA("ProximityPrompt", true) then return true end
-    return obj:IsA("Tool")
-end
-
-local function pickupAdornee(obj)
-    if obj:IsA("BasePart") then return obj end
-    if obj:IsA("Tool") then return obj:FindFirstChild("Handle") or obj:FindFirstChildWhichIsA("BasePart", true) end
-    if obj:IsA("Model") then return obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart", true) end
-    return obj:FindFirstChildWhichIsA("BasePart", true)
-end
-
-local function updateItemESP()
-    if not toggles.ItemESP then
-        for obj, gui in pairs(itemGuis) do if gui then gui:Destroy() end itemGuis[obj]=nil end
-        return
-    end
-    local seen = {}
-    for _, obj in ipairs(ws:GetChildren()) do
-        if pickupCandidate(obj) then
-            local part = pickupAdornee(obj)
-            if part then
-                seen[obj] = true
-                local gui = itemGuis[obj]
-                local label
-                if not gui or not gui.Parent then
-                    gui, label = makeLabelGui("ItemESP", part, obj.Name, Vector3.new(0,2.5,0), Color3.new(1,1,1))
-                    gui.Size = UDim2.new(0, 200, 0, 28)
-                    itemGuis[obj] = gui
-                else
-                    gui.Adornee = part
-                    label = gui:FindFirstChild("Label")
-                    if label then label.Text = obj.Name end
-                end
-            end
-        end
-    end
-    for obj, gui in pairs(itemGuis) do
-        if not seen[obj] or not obj:IsDescendantOf(ws) then
-            gui:Destroy()
-            itemGuis[obj]=nil
-        end
-    end
-end
-
-local function updateNoclip()
-    local char = lplr.Character
-    if not char then return end
-    if toggles.Noclip then
-        for _, part in ipairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then
-                if noclipOriginal[part] == nil then noclipOriginal[part] = part.CanCollide end
-                part.CanCollide = false
-            end
-        end
-    else
-        for part, old in pairs(noclipOriginal) do
-            if part and part.Parent then part.CanCollide = old end
-            noclipOriginal[part] = nil
-        end
-    end
-end
-
-local extraTimer = 0
-rs.Heartbeat:Connect(function(dt)
-    extraTimer += dt
-    updateNoclip()
-    if extraTimer >= 0.15 then
-        extraTimer = 0
-        updateEnemyHP()
-        updatePlayerInfo()
-        updateItemESP()
     end
 end)
