@@ -12,13 +12,14 @@ local lplr = plrs.LocalPlayer
 local toggles = {
     AimAssist = false,
     ESP = false,
+    EnemyHP = false,
     PlayerESP = false,
+    ItemESP = false,
     Hitboxes = false,
     Fullbright = false,
     InstantInteract = false,
     DelCorpses = false,
     Speed = false,
-
     -- Optimization
     LowVisuals = false,
     InstanceOptimizer = false,
@@ -116,7 +117,6 @@ local origSize = main.Size
 
 minBtn.MouseButton1Click:Connect(function()
     isMin = not isMin
-
     if isMin then
         origSize = main.Size
         scroll.Visible = false
@@ -156,10 +156,7 @@ end
 local function createToggle(name, key)
     local b = Instance.new("TextButton")
     b.Parent = scroll
-    b.BackgroundColor3 = toggles[key]
-        and Color3.fromRGB(40, 150, 40)
-        or Color3.fromRGB(150, 40, 40)
-
+    b.BackgroundColor3 = toggles[key] and Color3.fromRGB(40, 150, 40) or Color3.fromRGB(150, 40, 40)
     b.Size = UDim2.new(0.9, 0, 0, 35)
     b.Font = Enum.Font.Gotham
     b.Text = name .. (toggles[key] and ": ON" or ": OFF")
@@ -169,18 +166,12 @@ local function createToggle(name, key)
 
     b.MouseButton1Click:Connect(function()
         toggles[key] = not toggles[key]
-
         b.Text = name .. (toggles[key] and ": ON" or ": OFF")
-
-        b.BackgroundColor3 = toggles[key]
-            and Color3.fromRGB(40, 150, 40)
-            or Color3.fromRGB(150, 40, 40)
+        b.BackgroundColor3 = toggles[key] and Color3.fromRGB(40, 150, 40) or Color3.fromRGB(150, 40, 40)
 
         if key == "ESP" and not toggles.ESP then
             for _, v in ipairs(ws:GetDescendants()) do
-                if v.Name == "NPCHighlight" then
-                    v:Destroy()
-                end
+                if v.Name == "NPCHighlight" then v:Destroy() end
             end
         end
     end)
@@ -212,60 +203,34 @@ local function createSlider(name, minV, maxV, def, cb)
     local fill = Instance.new("Frame")
     fill.Parent = back
     fill.BackgroundColor3 = Color3.fromRGB(40, 150, 40)
-    fill.Size = UDim2.new(
-        (def - minV) / (maxV - minV),
-        0,
-        1,
-        0
-    )
+    fill.Size = UDim2.new((def - minV) / (maxV - minV), 0, 1, 0)
     fill.BorderSizePixel = 0
 
     local dragging = false
-
     local function update(input)
-        local pos = math.clamp(
-            (input.Position.X - back.AbsolutePosition.X)
-                / back.AbsoluteSize.X,
-            0,
-            1
-        )
-
+        local pos = math.clamp((input.Position.X - back.AbsolutePosition.X) / back.AbsoluteSize.X, 0, 1)
         fill.Size = UDim2.new(pos, 0, 1, 0)
-
         local val = minV + (maxV - minV) * pos
         val = math.floor(val * 100) / 100
-
         lbl.Text = name .. ": " .. tostring(val)
-
-        if cb then
-            cb(val)
-        end
+        if cb then cb(val) end
     end
 
     back.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-            or input.UserInputType == Enum.UserInputType.Touch then
-
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             update(input)
         end
     end)
 
     uis.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-            or input.UserInputType == Enum.UserInputType.Touch then
-
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = false
         end
     end)
 
     uis.InputChanged:Connect(function(input)
-        if dragging
-            and (
-                input.UserInputType == Enum.UserInputType.MouseMovement
-                or input.UserInputType == Enum.UserInputType.Touch
-            ) then
-
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
             update(input)
         end
     end)
@@ -275,7 +240,9 @@ end
 createSection("General")
 createToggle("Aim Assist", "AimAssist")
 createToggle("NPC ESP", "ESP")
+createToggle("Enemy HP", "EnemyHP")
 createToggle("Player ESP", "PlayerESP")
+createToggle("Item ESP", "ItemESP")
 createToggle("Big Hitboxes", "Hitboxes")
 createToggle("Fullbright", "Fullbright")
 createToggle("Instant Interact", "InstantInteract")
@@ -284,45 +251,10 @@ createToggle("Speed Modifier", "Speed")
 
 -- Sliders
 createSection("Settings")
-createSlider(
-    "Aim Strength",
-    0.01,
-    1.0,
-    cfg.aimStrength,
-    function(v)
-        cfg.aimStrength = v
-    end
-)
-
-createSlider(
-    "FOV",
-    10,
-    300,
-    cfg.fov,
-    function(v)
-        cfg.fov = v
-    end
-)
-
-createSlider(
-    "Hitbox Size",
-    1,
-    20,
-    hitboxCfg.size.X,
-    function(v)
-        hitboxCfg.size = Vector3.new(v, v, v)
-    end
-)
-
-createSlider(
-    "Walk Speed",
-    1,
-    100,
-    cfg.speed,
-    function(v)
-        cfg.speed = v
-    end
-)
+createSlider("Aim Strength", 0.01, 1.0, cfg.aimStrength, function(v) cfg.aimStrength = v end)
+createSlider("FOV", 10, 300, cfg.fov, function(v) cfg.fov = v end)
+createSlider("Hitbox Size", 1, 20, hitboxCfg.size.X, function(v) hitboxCfg.size = Vector3.new(v, v, v) end)
+createSlider("Walk Speed", 1, 100, cfg.speed, function(v) cfg.speed = v end)
 
 -- Optimization section
 createSection("Optimization")
@@ -342,58 +274,37 @@ end)
 local lastSpeed = false
 
 uis.InputBegan:Connect(function(input, gpe)
-    if input.KeyCode == Enum.KeyCode.LeftShift
-        or input.KeyCode == Enum.KeyCode.RightShift then
-
+    if input.KeyCode == Enum.KeyCode.LeftShift or input.KeyCode == Enum.KeyCode.RightShift then
         if toggles.Speed then
-            local hum = lplr.Character
-                and lplr.Character:FindFirstChildOfClass("Humanoid")
-
-            if hum then
-                hum.WalkSpeed = 16
-            end
+            local hum = lplr.Character and lplr.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum.WalkSpeed = 16 end
         end
     end
 end)
 
 uis.InputEnded:Connect(function(input)
-    if input.KeyCode == Enum.KeyCode.LeftShift
-        or input.KeyCode == Enum.KeyCode.RightShift then
-
+    if input.KeyCode == Enum.KeyCode.LeftShift or input.KeyCode == Enum.KeyCode.RightShift then
         if toggles.Speed then
-            local hum = lplr.Character
-                and lplr.Character:FindFirstChildOfClass("Humanoid")
-
-            if hum then
-                hum.WalkSpeed = cfg.speed
-            end
+            local hum = lplr.Character and lplr.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum.WalkSpeed = cfg.speed end
         end
     end
 end)
 
 rs.Heartbeat:Connect(function()
     local char = lplr.Character
-    if not char then
-        return
-    end
-
+    if not char then return end
     local hum = char:FindFirstChildOfClass("Humanoid")
-    if not hum then
-        return
-    end
+    if not hum then return end
 
     if toggles.Speed ~= lastSpeed then
         lastSpeed = toggles.Speed
-
         if not toggles.Speed then
             hum.WalkSpeed = 16
         end
     end
 
-    local shiftHeld =
-        uis:IsKeyDown(Enum.KeyCode.LeftShift)
-        or uis:IsKeyDown(Enum.KeyCode.RightShift)
-
+    local shiftHeld = uis:IsKeyDown(Enum.KeyCode.LeftShift) or uis:IsKeyDown(Enum.KeyCode.RightShift)
     if toggles.Speed and not shiftHeld then
         hum.WalkSpeed = cfg.speed
     end
@@ -410,18 +321,13 @@ end)
 
 -- NPC ESP
 local function applyEsp(model)
-    if not toggles.ESP then
-        return
-    end
-
+    if not toggles.ESP then return end
     local hl = model:FindFirstChild("NPCHighlight")
-
     if not hl then
         hl = Instance.new("Highlight")
         hl.Name = "NPCHighlight"
         hl.Parent = model
     end
-
     hl.FillColor = cfg.espFill
     hl.OutlineColor = cfg.espOutline
     hl.FillTransparency = cfg.fillTrans
@@ -429,25 +335,97 @@ local function applyEsp(model)
     hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 end
 
--- =========================================================
--- PLAYER ESP
--- Name + Username + HP + Distance
--- =========================================================
+-- Enemy HP ESP
+local function addEnemyHPESP(model)
+    if not toggles.EnemyHP then return end
+    local hum = model:FindFirstChildOfClass("Humanoid")
+    local root = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart")
+    if not hum or not root or hum.Health <= 0 then return end
 
-local function addPlayerESP(plr, char)
-    if not toggles.PlayerESP then
-        return
+    local hpGui = root:FindFirstChild("EnemyHPESP")
+    if not hpGui then
+        hpGui = Instance.new("BillboardGui")
+        hpGui.Name = "EnemyHPESP"
+        hpGui.Size = UDim2.new(0, 140, 0, 24)
+        hpGui.StudsOffset = Vector3.new(0, -3, 0)
+        hpGui.AlwaysOnTop = true
+        hpGui.MaxDistance = cfg.maxDist + 100
+        hpGui.Parent = root
+
+        local label = Instance.new("TextLabel")
+        label.Name = "HP"
+        label.Size = UDim2.new(1, 0, 1, 0)
+        label.BackgroundTransparency = 1
+        label.Font = Enum.Font.GothamBold
+        label.TextSize = 13
+        label.TextStrokeTransparency = 0
+        label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+        label.TextColor3 = Color3.fromRGB(255, 255, 255)
+        label.Parent = hpGui
     end
 
-    if not char then
-        return
+    local label = hpGui:FindFirstChild("HP")
+    if label then
+        local hp = math.max(0, hum.Health)
+        local maxHp = math.max(1, hum.MaxHealth)
+        local pct = math.clamp(hp / maxHp, 0, 1)
+        label.Text = "HP: " .. math.floor(hp + 0.5) .. "/" .. math.floor(maxHp + 0.5)
+        if pct > 0.6 then
+            label.TextColor3 = Color3.fromRGB(100, 255, 100)
+        elseif pct > 0.3 then
+            label.TextColor3 = Color3.fromRGB(255, 220, 80)
+        else
+            label.TextColor3 = Color3.fromRGB(255, 80, 80)
+        end
     end
+end
 
-    -- Highlight
-    local hl = char:FindFirstChild("PlayerHighlight")
+local function removeEnemyHPESP(model)
+    if not model then return end
+    local root = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart")
+    if root then
+        local gui = root:FindFirstChild("EnemyHPESP")
+        if gui then gui:Destroy() end
+    end
+end
 
-    if not hl then
-        hl = Instance.new("Highlight")
+local function updateEnemyHPESP()
+    if not toggles.EnemyHP then return end
+    for _, npc in ipairs(validTargets) do
+        addEnemyHPESP(npc)
+    end
+end
+
+
+-- Player ESP
+local function applyPlayerESP(state)
+    for _, plr in ipairs(plrs:GetPlayers()) do
+        if plr == lplr then continue end
+        local char = plr.Character
+        if not char then continue end
+        local hl = char:FindFirstChild("PlayerHighlight")
+        if state then
+            if not hl then
+                hl = Instance.new("Highlight")
+                hl.Name = "PlayerHighlight"
+                hl.FillColor = Color3.fromRGB(0, 120, 255)
+                hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+                hl.FillTransparency = 0.5
+                hl.OutlineTransparency = 0
+                hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                hl.Parent = char
+            end
+        else
+            if hl then hl:Destroy() end
+        end
+    end
+end
+
+plrs.PlayerAdded:Connect(function(plr)
+    plr.CharacterAdded:Connect(function(char)
+        if not toggles.PlayerESP then return end
+        task.wait(0.5)
+        local hl = Instance.new("Highlight")
         hl.Name = "PlayerHighlight"
         hl.FillColor = Color3.fromRGB(0, 120, 255)
         hl.OutlineColor = Color3.fromRGB(255, 255, 255)
@@ -455,558 +433,346 @@ local function addPlayerESP(plr, char)
         hl.OutlineTransparency = 0
         hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
         hl.Parent = char
-    end
-
-    -- Head
-    local head = char:FindFirstChild("Head")
-    if not head then
-        return
-    end
-
-    -- Billboard
-    local nameESP = head:FindFirstChild("PlayerNameESP")
-
-    if not nameESP then
-        nameESP = Instance.new("BillboardGui")
-        nameESP.Name = "PlayerNameESP"
-
-        -- Width / height
-        nameESP.Size = UDim2.new(0, 220, 0, 55)
-
-        -- Position above head
-        nameESP.StudsOffset = Vector3.new(0, 3, 0)
-
-        -- Visible through walls
-        nameESP.AlwaysOnTop = true
-
-        -- Don't disappear until very far away
-        nameESP.MaxDistance = 1000
-
-        nameESP.Parent = head
-
-        local info = Instance.new("TextLabel")
-        info.Name = "Info"
-        info.Size = UDim2.new(1, 0, 1, 0)
-        info.BackgroundTransparency = 1
-
-        info.Font = Enum.Font.GothamBold
-        info.TextSize = 13
-
-        info.TextColor3 = Color3.fromRGB(255, 255, 255)
-
-        -- Black outline
-        info.TextStrokeTransparency = 0
-        info.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-
-        info.TextWrapped = true
-        info.RichText = true
-
-        info.Parent = nameESP
-    end
-end
-
-local function removePlayerESP(char)
-    if not char then
-        return
-    end
-
-    -- Remove highlight
-    local hl = char:FindFirstChild("PlayerHighlight")
-
-    if hl then
-        hl:Destroy()
-    end
-
-    -- Remove name / HP / distance display
-    local head = char:FindFirstChild("Head")
-
-    if head then
-        local nameESP = head:FindFirstChild("PlayerNameESP")
-
-        if nameESP then
-            nameESP:Destroy()
-        end
-    end
-end
-
-local function updatePlayerESP()
-    if not toggles.PlayerESP then
-        return
-    end
-
-    local localChar = lplr.Character
-
-    local localRoot = localChar
-        and localChar:FindFirstChild("HumanoidRootPart")
-
-    for _, plr in ipairs(plrs:GetPlayers()) do
-        if plr == lplr then
-            continue
-        end
-
-        local char = plr.Character
-
-        if not char then
-            continue
-        end
-
-        local head = char:FindFirstChild("Head")
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        local root = char:FindFirstChild("HumanoidRootPart")
-
-        if head and hum then
-
-            -- Make sure ESP exists
-            addPlayerESP(plr, char)
-
-            local nameESP = head:FindFirstChild("PlayerNameESP")
-            local label = nameESP and nameESP:FindFirstChild("Info")
-
-            if label then
-
-                -- HP
-                local hp = math.max(0, hum.Health)
-                local maxHp = math.max(1, hum.MaxHealth)
-
-                -- Distance
-                local distance = 0
-
-                if localRoot and root then
-                    distance = math.floor(
-                        (root.Position - localRoot.Position).Magnitude + 0.5
-                    )
-                end
-
-                -- Text
-                label.Text =
-                    plr.DisplayName
-                    .. "  @"
-                    .. plr.Name
-                    .. "\n"
-                    .. "HP: "
-                    .. math.floor(hp)
-                    .. "/"
-                    .. math.floor(maxHp)
-                    .. "  |  "
-                    .. distance
-                    .. " studs"
-
-                -- HP percentage
-                local hpPercent = math.clamp(
-                    hp / maxHp,
-                    0,
-                    1
-                )
-
-                -- Color based on health
-                if hpPercent > 0.6 then
-
-                    -- Healthy
-                    label.TextColor3 =
-                        Color3.fromRGB(255, 255, 255)
-
-                elseif hpPercent > 0.3 then
-
-                    -- Injured
-                    label.TextColor3 =
-                        Color3.fromRGB(255, 220, 80)
-
-                else
-
-                    -- Critical
-                    label.TextColor3 =
-                        Color3.fromRGB(255, 80, 80)
-                end
-            end
-        end
-    end
-end
-
-local function applyPlayerESP(state)
-    for _, plr in ipairs(plrs:GetPlayers()) do
-        if plr == lplr then
-            continue
-        end
-
-        local char = plr.Character
-
-        if not char then
-            continue
-        end
-
-        if state then
-            addPlayerESP(plr, char)
-        else
-            removePlayerESP(char)
-        end
-    end
-end
-
--- New players
-plrs.PlayerAdded:Connect(function(plr)
-
-    plr.CharacterAdded:Connect(function(char)
-
-        task.wait(0.5)
-
-        if toggles.PlayerESP then
-            addPlayerESP(plr, char)
-        end
     end)
 end)
 
--- Player ESP updater
 local lastPlayerESP = false
-local playerESPUpdateTimer = 0
+local lastEnemyHP = false
+local lastItemESP = false
+local enemyHPUpdateTimer = 0
+local itemESPUpdateTimer = 0
 
 rs.Heartbeat:Connect(function(dt)
-
-    -- Detect toggle changes
     if toggles.PlayerESP ~= lastPlayerESP then
-
         lastPlayerESP = toggles.PlayerESP
-
         applyPlayerESP(toggles.PlayerESP)
     end
 
-    -- Update HP / distance every 0.1 seconds
-    if toggles.PlayerESP then
-
-        playerESPUpdateTimer += dt
-
-        if playerESPUpdateTimer >= 0.1 then
-
-            playerESPUpdateTimer = 0
-
-            updatePlayerESP()
-        end
-    end
-end)
-
--- =========================================================
--- CROSSHAIR
--- =========================================================
-
-local crossX = Drawing.new("Line")
-local crossY = Drawing.new("Line")
-
-crossX.Visible, crossY.Visible = true, true
-
-crossX.Thickness, crossY.Thickness = 2, 2
-
-crossX.Color, crossY.Color =
-    Color3.fromRGB(255, 255, 255),
-    Color3.fromRGB(255, 255, 255)
-
-local function refreshTargets()
-
-    local tTargets = {}
-    local inRange = {}
-
-    local pPos = cam.CFrame.Position
-
-    if lplr.Character
-        and lplr.Character:FindFirstChild("HumanoidRootPart") then
-
-        pPos =
-            lplr.Character.HumanoidRootPart.Position
-    end
-
-    for _, obj in ipairs(ws:GetChildren()) do
-
-        if not obj:IsA("Model") then
-            continue
-        end
-
-        if plrs:GetPlayerFromCharacter(obj) then
-            continue
-        end
-
-        local root =
-            obj.PrimaryPart
-            or obj:FindFirstChild("HumanoidRootPart")
-
-        local objPos =
-            root and root.Position
-
-        local dist =
-            objPos
-            and (objPos - pPos).Magnitude
-            or math.huge
-
-        if dist > cfg.maxDist then
-
-            local old =
-                obj:FindFirstChild("NPCHighlight")
-
-            if old then
-                old:Destroy()
-            end
-
-            continue
-        end
-
-        local hum =
-            obj:FindFirstChildOfClass("Humanoid")
-
-        if hum then
-
-            if toggles.DelCorpses
-                and hum.Health <= 0 then
-
-                continue
-            end
-
-            local part =
-                obj:FindFirstChild(cfg.targetPart)
-
-            if hum.Health > 0
-                and part
-                and not obj:FindFirstChild("REVIVE") then
-
-                inRange[#inRange + 1] = {
-                    model = obj,
-                    dist = dist
-                }
-
-            else
-
-                local old =
-                    obj:FindFirstChild("NPCHighlight")
-
-                if old then
-                    old:Destroy()
+    if toggles.EnemyHP ~= lastEnemyHP then
+        lastEnemyHP = toggles.EnemyHP
+        if not toggles.EnemyHP then
+            for _, npc in ipairs(ws:GetDescendants()) do
+                if npc:IsA("Model") then
+                    removeEnemyHPESP(npc)
                 end
             end
         end
     end
 
-    table.sort(
-        inRange,
-        function(a, b)
-            return a.dist < b.dist
+    if toggles.ItemESP ~= lastItemESP then
+        lastItemESP = toggles.ItemESP
+        if not toggles.ItemESP then
+            clearItemESP()
         end
-    )
+    end
 
-    for i, data in ipairs(inRange) do
+    if toggles.EnemyHP then
+        enemyHPUpdateTimer += dt
+        if enemyHPUpdateTimer >= 0.1 then
+            enemyHPUpdateTimer = 0
+            updateEnemyHPESP()
+        end
+    end
 
-        tTargets[#tTargets + 1] =
-            data.model
+    if toggles.ItemESP then
+        itemESPUpdateTimer += dt
+        if itemESPUpdateTimer >= 0.5 then
+            itemESPUpdateTimer = 0
+            updateItemESP()
+        end
+    end
+end)
 
-        if i <= cfg.maxEsp then
-            applyEsp(data.model)
-        else
+-- Item ESP
+local itemESPObjects = {}
 
-            local old =
-                data.model:FindFirstChild("NPCHighlight")
+local function getItemAdornee(obj)
+    if obj:IsA("BasePart") then
+        return obj
+    elseif obj:IsA("Tool") then
+        return obj:FindFirstChild("Handle")
+            or obj.PrimaryPart
+            or obj:FindFirstChildWhichIsA("BasePart", true)
+    elseif obj:IsA("Model") then
+        return obj.PrimaryPart
+            or obj:FindFirstChildWhichIsA("BasePart", true)
+    end
+    return nil
+end
 
-            if old then
-                old:Destroy()
+local function itemCategory(name)
+    local n = name:lower()
+
+    if n:find("medkit") or n:find("med kit") or n:find("medical")
+        or n:find("bandage") or n:find("heal") or n:find("medic") then
+        return "MEDICAL", Color3.fromRGB(100, 255, 120)
+    end
+
+    if n:find("grenade") or n:find("frag") or n:find("flash")
+        or n:find("smoke") or n:find("molotov") then
+        return "GRENADE", Color3.fromRGB(255, 180, 60)
+    end
+
+    if n:find("gun") or n:find("rifle") or n:find("pistol")
+        or n:find("smg") or n:find("shotgun") or n:find("revolver")
+        or n:find("carbine") or n:find("ak") or n:find("m4")
+        or n:find("glock") or n:find("peacemaker") then
+        return "GUN", Color3.fromRGB(255, 100, 100)
+    end
+
+    return "MISC", Color3.fromRGB(255, 255, 255)
+end
+
+local function isPickupCandidate(obj)
+    if plrs:GetPlayerFromCharacter(obj) then return false end
+    if obj:IsA("Tool") then return true end
+    if obj:IsA("Model") then
+        if obj:FindFirstChildOfClass("Humanoid") then return false end
+        return obj:FindFirstChildWhichIsA("ProximityPrompt", true) ~= nil
+    end
+    if obj:IsA("BasePart") then
+        return obj:FindFirstChildWhichIsA("ProximityPrompt", true) ~= nil
+    end
+    return false
+end
+
+local function addItemESP(obj)
+    if not toggles.ItemESP or not isPickupCandidate(obj) then return end
+
+    local adornee = getItemAdornee(obj)
+    if not adornee then return end
+
+    local existing = itemESPObjects[obj]
+    if existing and existing.Parent then
+        local label = existing:FindFirstChild("Label")
+        if label then
+            local category, color = itemCategory(obj.Name)
+            label.Text = category .. "\n" .. obj.Name
+            label.TextColor3 = color
+        end
+        return
+    end
+
+    local category, color = itemCategory(obj.Name)
+    local gui = Instance.new("BillboardGui")
+    gui.Name = "ItemESP"
+    gui.Size = UDim2.new(0, 180, 0, 38)
+    gui.StudsOffset = Vector3.new(0, 2, 0)
+    gui.AlwaysOnTop = true
+    gui.MaxDistance = cfg.maxDist + 100
+    gui.Parent = adornee
+
+    local label = Instance.new("TextLabel")
+    label.Name = "Label"
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 12
+    label.TextStrokeTransparency = 0
+    label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    label.TextColor3 = color
+    label.TextWrapped = true
+    label.Text = category .. "\n" .. obj.Name
+    label.Parent = gui
+
+    itemESPObjects[obj] = gui
+end
+
+local function removeItemESP(obj)
+    local gui = itemESPObjects[obj]
+    if gui then
+        gui:Destroy()
+        itemESPObjects[obj] = nil
+    end
+end
+
+local function clearItemESP()
+    for obj, gui in pairs(itemESPObjects) do
+        if gui then gui:Destroy() end
+        itemESPObjects[obj] = nil
+    end
+end
+
+local function updateItemESP()
+    if not toggles.ItemESP then
+        clearItemESP()
+        return
+    end
+
+    local seen = {}
+
+    for _, obj in ipairs(ws:GetDescendants()) do
+        if isPickupCandidate(obj) then
+            -- For descendants inside a Tool/Model, use the top-level pickup object.
+            local root = obj
+            if not obj:IsA("Tool") and not obj:IsA("Model") and not obj:IsA("BasePart") then
+                root = obj:FindFirstAncestorOfClass("Tool")
+                    or obj:FindFirstAncestorOfClass("Model")
+                    or obj
+            end
+
+            if root and (root:IsA("Tool") or root:IsA("Model") or root:IsA("BasePart")) then
+                seen[root] = true
+                addItemESP(root)
             end
         end
     end
 
+    for obj in pairs(itemESPObjects) do
+        if not seen[obj] or not obj:IsDescendantOf(ws) then
+            removeItemESP(obj)
+        end
+    end
+end
+
+-- Crosshair
+local crossX = Drawing.new("Line")
+local crossY = Drawing.new("Line")
+crossX.Visible, crossY.Visible = true, true
+crossX.Thickness, crossY.Thickness = 2, 2
+crossX.Color, crossY.Color = Color3.fromRGB(255, 255, 255), Color3.fromRGB(255, 255, 255)
+
+local function refreshTargets()
+    local tTargets = {}
+    local inRange = {}
+    local pPos = cam.CFrame.Position
+
+    if lplr.Character and lplr.Character:FindFirstChild("HumanoidRootPart") then
+        pPos = lplr.Character.HumanoidRootPart.Position
+    end
+
+    for _, obj in ipairs(ws:GetChildren()) do
+        if not obj:IsA("Model") then continue end
+        if plrs:GetPlayerFromCharacter(obj) then continue end
+
+        local root = obj.PrimaryPart or obj:FindFirstChild("HumanoidRootPart")
+        local objPos = root and root.Position
+        local dist = objPos and (objPos - pPos).Magnitude or math.huge
+
+        if dist > cfg.maxDist then
+            local old = obj:FindFirstChild("NPCHighlight")
+            if old then old:Destroy() end
+            continue
+        end
+
+        local hum = obj:FindFirstChildOfClass("Humanoid")
+        if hum then
+            if toggles.DelCorpses and hum.Health <= 0 then continue end
+
+            local part = obj:FindFirstChild(cfg.targetPart)
+            if hum.Health > 0 and part and not obj:FindFirstChild("REVIVE") then
+                inRange[#inRange + 1] = {model = obj, dist = dist}
+            else
+                local old = obj:FindFirstChild("NPCHighlight")
+                if old then old:Destroy() end
+            end
+        end
+    end
+
+    table.sort(inRange, function(a, b) return a.dist < b.dist end)
+
+    for i, data in ipairs(inRange) do
+        tTargets[#tTargets + 1] = data.model
+        if i <= cfg.maxEsp then
+            applyEsp(data.model)
+        else
+            local old = data.model:FindFirstChild("NPCHighlight")
+            if old then old:Destroy() end
+        end
+    end
     validTargets = tTargets
 end
 
 -- Delete corpses loop
 task.spawn(function()
-
     while true do
-
         if toggles.DelCorpses then
-
             for _, obj in ipairs(ws:GetChildren()) do
-
                 if obj:IsA("Model") then
-
-                    local hum =
-                        obj:FindFirstChildOfClass("Humanoid")
-
+                    local hum = obj:FindFirstChildOfClass("Humanoid")
                     if hum and hum.Health <= 0 then
                         obj:Destroy()
                     end
                 end
             end
         end
-
         task.wait(0.1)
     end
 end)
 
 -- Target scan loop
 task.spawn(function()
-
     while true do
-
         refreshTargets()
-
         task.wait(cfg.scanRate)
     end
 end)
 
 -- Aim assist + crosshair
 rs.RenderStepped:Connect(function(dt)
+    local center = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
 
-    local center =
-        Vector2.new(
-            cam.ViewportSize.X / 2,
-            cam.ViewportSize.Y / 2
-        )
-
-    crossX.From =
-        Vector2.new(
-            center.X - 10,
-            center.Y
-        )
-
-    crossX.To =
-        Vector2.new(
-            center.X + 10,
-            center.Y
-        )
-
-    crossY.From =
-        Vector2.new(
-            center.X,
-            center.Y - 10
-        )
-
-    crossY.To =
-        Vector2.new(
-            center.X,
-            center.Y + 10
-        )
+    crossX.From = Vector2.new(center.X - 10, center.Y)
+    crossX.To = Vector2.new(center.X + 10, center.Y)
+    crossY.From = Vector2.new(center.X, center.Y - 10)
+    crossY.To = Vector2.new(center.X, center.Y + 10)
 
     if not toggles.AimAssist then
-
-        crossX.Color,
-        crossY.Color =
-            Color3.fromRGB(255, 255, 255),
-            Color3.fromRGB(255, 255, 255)
-
+        crossX.Color, crossY.Color = Color3.fromRGB(255, 255, 255), Color3.fromRGB(255, 255, 255)
         return
     end
 
     local bestTorso = nil
     local shortest = cfg.fov
-
-    local ignore = {
-        lplr.Character
-    }
+    local ignore = { lplr.Character }
 
     for _, npc in ipairs(validTargets) do
         ignore[#ignore + 1] = npc
     end
 
     for _, npc in ipairs(validTargets) do
-
-        local torso =
-            npc:FindFirstChild(cfg.targetPart)
-
+        local torso = npc:FindFirstChild(cfg.targetPart)
         if torso then
-
-            local sPos, onScreen =
-                cam:WorldToViewportPoint(
-                    torso.Position
-                )
-
+            local sPos, onScreen = cam:WorldToViewportPoint(torso.Position)
             if onScreen then
-
-                local dist =
-                    (
-                        Vector2.new(
-                            sPos.X,
-                            sPos.Y
-                        ) - center
-                    ).Magnitude
-
+                local dist = (Vector2.new(sPos.X, sPos.Y) - center).Magnitude
                 if dist < shortest then
-
-                    local obscuring =
-                        cam:GetPartsObscuringTarget(
-                            { torso.Position },
-                            ignore
-                        )
-
+                    local obscuring = cam:GetPartsObscuringTarget({ torso.Position }, ignore)
                     local blocked = false
-
                     for _, part in ipairs(obscuring) do
-
-                        local parent =
-                            part.Parent
-
-                        local parentName =
-                            parent
-                            and parent.Name:lower()
-                            or ""
-
-                        local isDoor =
-                            parentName:find("wooden door")
-                            or part.Name:lower():find("door")
-
-                        if isDoor then
-                            continue
-                        end
+                        local parent = part.Parent
+                        local parentName = parent and parent.Name:lower() or ""
+                        local isDoor = parentName:find("wooden door") or part.Name:lower():find("door")
+                        if isDoor then continue end
 
                         local isGui = false
                         local guiCheck = part.Parent
-
-                        while guiCheck
-                            and guiCheck ~= ws do
-
-                            if guiCheck:IsA("GuiObject")
-                                or guiCheck:IsA("BasePlayerGui")
-                                or guiCheck:IsA("ScreenGui") then
-
+                        while guiCheck and guiCheck ~= ws do
+                            if guiCheck:IsA("GuiObject") or guiCheck:IsA("BasePlayerGui") or guiCheck:IsA("ScreenGui") then
                                 isGui = true
                                 break
                             end
-
-                            guiCheck =
-                                guiCheck.Parent
+                            guiCheck = guiCheck.Parent
                         end
+                        if isGui then continue end
 
-                        if isGui then
-                            continue
-                        end
-
-                        local ancestor =
-                            part.Parent
-
+                        local ancestor = part.Parent
                         local inRoom = false
-
-                        while ancestor
-                            and ancestor ~= ws do
-
-                            local n =
-                                ancestor.Name:lower()
-
-                            if ancestor:IsA("Model")
-                                and (
-                                    n:find("room")
-                                    or n:find("start")
-                                    or n:find("bossfight")
-                                ) then
-
+                        while ancestor and ancestor ~= ws do
+                            local n = ancestor.Name:lower()
+                            if ancestor:IsA("Model") and (n:find("room") or n:find("start") or n:find("bossfight")) then
                                 inRoom = true
                                 break
                             end
-
-                            ancestor =
-                                ancestor.Parent
+                            ancestor = ancestor.Parent
                         end
 
                         if inRoom then
-
                             blocked = true
-
                             break
                         end
                     end
-
                     if not blocked then
-
                         bestTorso = torso
                         shortest = dist
                     end
@@ -1016,364 +782,153 @@ rs.RenderStepped:Connect(function(dt)
     end
 
     if bestTorso then
-
-        crossX.Color,
-        crossY.Color =
-            Color3.fromRGB(255, 0, 0),
-            Color3.fromRGB(255, 0, 0)
-
-        local root =
-            bestTorso.Parent
-            and bestTorso.Parent:FindFirstChild(
-                "HumanoidRootPart"
-            )
-
-        local vel =
-            root
-            and root.AssemblyLinearVelocity
-            or Vector3.zero
-
+        crossX.Color, crossY.Color = Color3.fromRGB(255, 0, 0), Color3.fromRGB(255, 0, 0)
+        local root = bestTorso.Parent and bestTorso.Parent:FindFirstChild("HumanoidRootPart")
+        local vel = root and root.AssemblyLinearVelocity or Vector3.zero
         local pingComp = 0.055
+        local predictedPos = bestTorso.Position + vel * pingComp
 
-        local predictedPos =
-            bestTorso.Position
-            + vel * pingComp
-
-        local sPos =
-            cam:WorldToViewportPoint(
-                predictedPos
-            )
-
-        local dx =
-            sPos.X - center.X
-
-        local dy =
-            sPos.Y - center.Y
-
-        local dist2D =
-            math.sqrt(
-                dx * dx
-                + dy * dy
-            )
+        local sPos = cam:WorldToViewportPoint(predictedPos)
+        local dx = sPos.X - center.X
+        local dy = sPos.Y - center.Y
+        local dist2D = math.sqrt(dx * dx + dy * dy)
 
         if dist2D > 0.5 then
+            local distScale = math.clamp(dist2D / 80, 0.65, 1.0)
+            local strength = cfg.aimStrength * distScale
 
-            local distScale =
-                math.clamp(
-                    dist2D / 80,
-                    0.65,
-                    1.0
-                )
-
-            local strength =
-                cfg.aimStrength
-                * distScale
-
-            if mousemoverel
-                and not uis.TouchEnabled then
-
-                mousemoverel(
-                    dx * strength,
-                    dy * strength
-                )
-
+            if mousemoverel and not uis.TouchEnabled then
+                mousemoverel(dx * strength, dy * strength)
             else
-
-                local lerpAlpha =
-                    math.clamp(
-                        strength * dt * 18,
-                        0,
-                        0.5
-                    )
-
-                local targetCF =
-                    CFrame.new(
-                        cam.CFrame.Position,
-                        predictedPos
-                    )
-
-                cam.CFrame =
-                    cam.CFrame:Lerp(
-                        targetCF,
-                        lerpAlpha
-                    )
+                local lerpAlpha = math.clamp(strength * dt * 18, 0, 0.5)
+                local targetCF = CFrame.new(cam.CFrame.Position, predictedPos)
+                cam.CFrame = cam.CFrame:Lerp(targetCF, lerpAlpha)
             end
         end
-
     else
-
-        crossX.Color,
-        crossY.Color =
-            Color3.fromRGB(255, 255, 255),
-            Color3.fromRGB(255, 255, 255)
+        crossX.Color, crossY.Color = Color3.fromRGB(255, 255, 255), Color3.fromRGB(255, 255, 255)
     end
 end)
 
 -- Hitboxes
 task.spawn(function()
-
     while true do
-
         for _, obj in ipairs(ws:GetChildren()) do
-
-            if plrs:GetPlayerFromCharacter(obj) then
-                continue
-            end
-
+            if plrs:GetPlayerFromCharacter(obj) then continue end
             if obj:IsA("Model") then
-
-                local hum =
-                    obj:FindFirstChildOfClass("Humanoid")
-
-                local tPart =
-                    obj:FindFirstChild(
-                        hitboxCfg.part
-                    )
+                local hum = obj:FindFirstChildOfClass("Humanoid")
+                local tPart = obj:FindFirstChild(hitboxCfg.part)
 
                 if tPart then
-
-                    if toggles.Hitboxes
-                        and hum
-                        and hum.Health > 0 then
-
+                    if toggles.Hitboxes and hum and hum.Health > 0 then
                         if not tPart:GetAttribute("OrigSize") then
-
-                            tPart:SetAttribute(
-                                "OrigSize",
-                                tPart.Size
-                            )
-
-                            tPart:SetAttribute(
-                                "OrigTrans",
-                                tPart.Transparency
-                            )
-
-                            tPart:SetAttribute(
-                                "OrigColor",
-                                tPart.BrickColor.Name
-                            )
+                            tPart:SetAttribute("OrigSize", tPart.Size)
+                            tPart:SetAttribute("OrigTrans", tPart.Transparency)
+                            tPart:SetAttribute("OrigColor", tPart.BrickColor.Name)
                         end
-
                         if tPart.Size ~= hitboxCfg.size then
-
-                            tPart.Size =
-                                hitboxCfg.size
-
+                            tPart.Size = hitboxCfg.size
                             tPart.CanCollide = false
                             tPart.Massless = true
-
                             if hitboxCfg.show then
-
-                                tPart.Transparency =
-                                    hitboxCfg.trans
-
-                                tPart.BrickColor =
-                                    hitboxCfg.color
+                                tPart.Transparency = hitboxCfg.trans
+                                tPart.BrickColor = hitboxCfg.color
                             end
                         end
-
                     elseif not toggles.Hitboxes then
-
-                        if tPart:GetAttribute("OrigSize")
-                            and tPart.Size
-                                ~= tPart:GetAttribute("OrigSize") then
-
-                            tPart.Size =
-                                tPart:GetAttribute(
-                                    "OrigSize"
-                                )
-
-                            tPart.Transparency =
-                                tPart:GetAttribute(
-                                    "OrigTrans"
-                                )
-
-                            tPart.BrickColor =
-                                BrickColor.new(
-                                    tPart:GetAttribute(
-                                        "OrigColor"
-                                    )
-                                )
+                        if tPart:GetAttribute("OrigSize") and tPart.Size ~= tPart:GetAttribute("OrigSize") then
+                            tPart.Size = tPart:GetAttribute("OrigSize")
+                            tPart.Transparency = tPart:GetAttribute("OrigTrans")
+                            tPart.BrickColor = BrickColor.new(tPart:GetAttribute("OrigColor"))
                         end
                     end
                 end
             end
         end
-
         task.wait(hitboxCfg.refreshRate)
     end
 end)
 
 -- Fullbright
 lighting.Changed:Connect(function()
-
-    if not toggles.Fullbright then
-        return
-    end
-
+    if not toggles.Fullbright then return end
     lighting.Brightness = 2
     lighting.ClockTime = 14
     lighting.FogEnd = 100000
     lighting.GlobalShadows = false
-
-    lighting.Ambient =
-        Color3.fromRGB(
-            178,
-            178,
-            178
-        )
-
-    lighting.OutdoorAmbient =
-        Color3.fromRGB(
-            178,
-            178,
-            178
-        )
+    lighting.Ambient = Color3.fromRGB(178, 178, 178)
+    lighting.OutdoorAmbient = Color3.fromRGB(178, 178, 178)
 end)
 
 -- AI State Disabler
 task.spawn(function()
-
     local bannedStates = {
         Enum.HumanoidStateType.Climbing,
         Enum.HumanoidStateType.Swimming,
         Enum.HumanoidStateType.FallingDown,
         Enum.HumanoidStateType.Ragdoll
     }
-
     while true do
-
         task.wait(2)
-
         local i = 0
-
-        for _, obj in ipairs(
-            ws:GetDescendants()
-        ) do
-
-            if obj:IsA("Humanoid")
-                and not plrs:GetPlayerFromCharacter(
-                    obj.Parent
-                ) then
-
+        for _, obj in ipairs(ws:GetDescendants()) do
+            if obj:IsA("Humanoid") and not plrs:GetPlayerFromCharacter(obj.Parent) then
                 if obj.Health > 0 then
-
-                    for _, state in ipairs(
-                        bannedStates
-                    ) do
-
-                        obj:SetStateEnabled(
-                            state,
-                            false
-                        )
+                    for _, state in ipairs(bannedStates) do
+                        obj:SetStateEnabled(state, false)
                     end
                 end
             end
-
             i += 1
-
-            if i % 50 == 0 then
-                task.wait()
-            end
+            if i % 50 == 0 then task.wait() end
         end
     end
 end)
 
 -- Low Visuals
 local lastLowVisuals = false
-
 local function applyLowVisuals(state)
-
-    lighting.GlobalShadows =
-        not state
-
-    for _, v in ipairs(
-        lighting:GetChildren()
-    ) do
-
-        if v:IsA("BlurEffect")
-            or v:IsA("BloomEffect")
-            or v:IsA("SunRaysEffect") then
-
-            v.Enabled =
-                not state
+    lighting.GlobalShadows = not state
+    for _, v in ipairs(lighting:GetChildren()) do
+        if v:IsA("BlurEffect") or v:IsA("BloomEffect") or v:IsA("SunRaysEffect") then
+            v.Enabled = not state
         end
     end
 end
 
 rs.Heartbeat:Connect(function()
-
-    if toggles.LowVisuals
-        ~= lastLowVisuals then
-
-        lastLowVisuals =
-            toggles.LowVisuals
-
-        applyLowVisuals(
-            toggles.LowVisuals
-        )
+    if toggles.LowVisuals ~= lastLowVisuals then
+        lastLowVisuals = toggles.LowVisuals
+        applyLowVisuals(toggles.LowVisuals)
     end
 end)
 
 -- Instance Optimizer
 task.spawn(function()
-
     while true do
-
         task.wait(5)
-
-        if not toggles.InstanceOptimizer then
-            continue
-        end
-
+        if not toggles.InstanceOptimizer then continue end
         local i = 0
-
-        for _, v in ipairs(
-            ws:GetDescendants()
-        ) do
-
-            if v:IsA("MeshPart")
-                or v:IsA("UnionOperation") then
-
-                v.RenderFidelity =
-                    Enum.RenderFidelity.Performance
-
-                local isDebris =
-                    not v.Anchored
+        for _, v in ipairs(ws:GetDescendants()) do
+            if v:IsA("MeshPart") or v:IsA("UnionOperation") then
+                v.RenderFidelity = Enum.RenderFidelity.Performance
+                local isDebris = not v.Anchored
                     and v.Size.Magnitude < 4
-                    and not v.Parent:FindFirstChildOfClass(
-                        "Humanoid"
-                    )
-                    and not plrs:GetPlayerFromCharacter(
-                        v.Parent
-                    )
-
+                    and not v.Parent:FindFirstChildOfClass("Humanoid")
+                    and not plrs:GetPlayerFromCharacter(v.Parent)
                 if isDebris then
-
-                    v.CollisionFidelity =
-                        Enum.CollisionFidelity.Box
+                    v.CollisionFidelity = Enum.CollisionFidelity.Box
                 end
             end
-
-            if v:IsA("BasePart")
-                and not v.Anchored then
-
+            if v:IsA("BasePart") and not v.Anchored then
                 local sz = v.Size
-
-                if sz.X < 1
-                    and sz.Y < 1
-                    and sz.Z < 1 then
-
+                if sz.X < 1 and sz.Y < 1 and sz.Z < 1 then
                     v.CanTouch = false
                     v.CanQuery = false
                 end
             end
-
             i += 1
-
-            if i % 100 == 0 then
-                task.wait()
-            end
+            if i % 100 == 0 then task.wait() end
         end
     end
 end)
@@ -1382,27 +937,14 @@ end)
 local cachedRates = {}
 
 local function applyParticleCap(state)
-
-    for _, v in ipairs(
-        ws:GetDescendants()
-    ) do
-
+    for _, v in ipairs(ws:GetDescendants()) do
         if v:IsA("ParticleEmitter") then
-
             if state then
-
-                cachedRates[v] =
-                    v.Rate
-
+                cachedRates[v] = v.Rate
                 v.Rate = 5
-
             else
-
                 if cachedRates[v] then
-
-                    v.Rate =
-                        cachedRates[v]
-
+                    v.Rate = cachedRates[v]
                     cachedRates[v] = nil
                 end
             end
@@ -1411,18 +953,10 @@ local function applyParticleCap(state)
 end
 
 local lastParticleCap = false
-
 rs.Heartbeat:Connect(function()
-
-    if toggles.ParticleCap
-        ~= lastParticleCap then
-
-        lastParticleCap =
-            toggles.ParticleCap
-
-        applyParticleCap(
-            toggles.ParticleCap
-        )
+    if toggles.ParticleCap ~= lastParticleCap then
+        lastParticleCap = toggles.ParticleCap
+        applyParticleCap(toggles.ParticleCap)
     end
 end)
 
@@ -1430,28 +964,14 @@ end)
 local cachedTextures = {}
 
 local function applyUltraPotato(state)
-
-    for _, v in ipairs(
-        ws:GetDescendants()
-    ) do
-
-        if v:IsA("Texture")
-            or v:IsA("Decal") then
-
+    for _, v in ipairs(ws:GetDescendants()) do
+        if v:IsA("Texture") or v:IsA("Decal") then
             if state then
-
-                cachedTextures[v] =
-                    v.Texture
-
+                cachedTextures[v] = v.Texture
                 v.Texture = ""
-
             else
-
                 if cachedTextures[v] then
-
-                    v.Texture =
-                        cachedTextures[v]
-
+                    v.Texture = cachedTextures[v]
                     cachedTextures[v] = nil
                 end
             end
@@ -1460,67 +980,30 @@ local function applyUltraPotato(state)
 end
 
 local lastUltraPotato = false
-
 rs.Heartbeat:Connect(function()
-
-    if toggles.UltraPotato
-        ~= lastUltraPotato then
-
-        lastUltraPotato =
-            toggles.UltraPotato
-
-        applyUltraPotato(
-            toggles.UltraPotato
-        )
+    if toggles.UltraPotato ~= lastUltraPotato then
+        lastUltraPotato = toggles.UltraPotato
+        applyUltraPotato(toggles.UltraPotato)
     end
 end)
 
 -- F1 Deep Clean
-uis.InputBegan:Connect(function(
-    input,
-    gpe
-)
-
-    if gpe then
-        return
-    end
-
+uis.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
     if input.KeyCode == Enum.KeyCode.F1 then
-
         local cleaned = 0
         local i = 0
-
-        for _, v in ipairs(
-            ws:GetChildren()
-        ) do
-
-            if v:IsA("BasePart")
-                and not v.Anchored
-                and not plrs:GetPlayerFromCharacter(
-                    v.Parent
-                ) then
-
+        for _, v in ipairs(ws:GetChildren()) do
+            if v:IsA("BasePart") and not v.Anchored and not plrs:GetPlayerFromCharacter(v.Parent) then
                 v:Destroy()
-
                 cleaned += 1
             end
-
             i += 1
-
-            if i % 50 == 0 then
-                task.wait()
-            end
+            if i % 50 == 0 then task.wait() end
         end
-
         applyParticleCap(true)
-
         lastParticleCap = true
         toggles.ParticleCap = true
-
-        print(
-            "Deep Clean done, removed "
-            .. cleaned
-            .. " parts"
-        )
+        print("Deep Clean done, removed " .. cleaned .. " parts")
     end
 end)
